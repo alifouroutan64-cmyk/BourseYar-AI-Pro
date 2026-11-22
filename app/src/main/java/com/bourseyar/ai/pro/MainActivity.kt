@@ -96,6 +96,34 @@ class MainActivity : Activity() {
                     setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
                 }
                 body.addView(symbolsInput)
+                lateinit var leadersButton: Button
+                leadersButton = Button(this).apply {
+                    text = "یافتن ۲۰ نماد برتر بازار بر اساس ارزش معاملات"
+                    setOnClickListener {
+                        isEnabled = false
+                        text = "در حال دریافت دیده‌بان بازار…"
+                        Thread {
+                            try {
+                                val leaders = TsetmcHistoryProvider.fetchMarketLeaders(20)
+                                runOnUiThread {
+                                    symbolsInput.setText(leaders.joinToString("، ") { it.symbol })
+                                    card("نمادهای پرتراکنش دیده‌بان", leaders.take(10).joinToString("\\n") {
+                                        "${it.symbol} | حجم ${"%.0f".format(java.util.Locale.US, it.volume)} | ارزش گزارش‌شده ${"%.0f".format(java.util.Locale.US, it.tradedValue)}"
+                                    } + "\\n۲۰ نماد برتر بر اساس ارزش گزارش‌شده انتخاب شدند. برای دریافت تاریخچه و اسکن، دکمه دریافت TSETMC را بزنید.")
+                                    leadersButton.isEnabled = true
+                                    leadersButton.text = "به‌روزرسانی ۲۰ نماد برتر بازار"
+                                }
+                            } catch (e: Exception) {
+                                runOnUiThread {
+                                    card("خطا در دیده‌بان بازار", e.message ?: "خطای شبکه یا ساختار پاسخ")
+                                    leadersButton.isEnabled = true
+                                    leadersButton.text = "تلاش مجدد برای دریافت نمادهای برتر"
+                                }
+                            }
+                        }.start()
+                    }
+                }
+                body.addView(leadersButton)
                 val minVolumeInput = EditText(this).apply {
                     hint = "حداقل میانگین حجم روزانه ۲۰ روز (۰ = غیرفعال)"
                     inputType = android.text.InputType.TYPE_CLASS_NUMBER
