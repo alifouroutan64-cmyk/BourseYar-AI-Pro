@@ -199,14 +199,22 @@ class MainActivity : Activity() {
                                     val attempts = symbols.map { symbol -> symbol to runCatching { TsetmcHistoryProvider.fetchDaily(symbol) } }
                                     val series = attempts.mapNotNull { it.second.getOrNull() }
                                     require(series.isNotEmpty()) { attempts.joinToString("؛ ") { (symbol, result) -> "$symbol: ${result.exceptionOrNull()?.message ?: "دریافت نشد"}" } }
-                                    val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles, minAvgVol) }
-                                        .sortedByDescending { it.report.score }
+                                    val results = series.mapNotNull { data ->
+                                        val candidate = AnalysisEngine.scanCandles(data.symbol, data.candles, minAvgVol) ?: return@mapNotNull null
+                                        val previousVolumes = data.candles.dropLast(1).takeLast(20).map { it.volume }
+                                        val averageVolume = previousVolumes.average()
+                                        val relativeVolume = if (averageVolume > 0.0) data.candles.last().volume / averageVolume else null
+                                        val composite = OpportunityScoring.score(candidate.report.score, null, relativeVolume, 1.5)
+                                        Triple(candidate, composite, relativeVolume)
+                                    }.sortedByDescending { it.second ?: -1 }
                                     val backtests = series.map { it.symbol to AnalysisEngine.backtest(it.candles, minScore, feeBps) }
                                     val fetchErrors = attempts.filter { it.second.isFailure }
                                     runOnUiThread {
                                         card("نتیجه اسکن خودکار TSETMC | ${results.size} نماد",
-                                            results.joinToString("\n\n") { x ->
-                                                "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\n" +
+                                            results.joinToString("\n\n") { row ->
+                                                val x = row.first
+                                                "${x.symbol} | امتیاز تکنیکال ${x.report.score}/100 | امتیاز ترکیبی موقت ${row.second ?: "—"}/100 | روند ${x.report.trend}\n" +
+                                                "حجم نسبی: ${row.third?.let { "%.2fx".format(java.util.Locale.US, it) } ?: "ناموجود"} | جریان پول: هنوز در این امتیاز وارد نشده\n" +
                                                 "آخرین قیمت تعدیل‌شده: ${x.report.last}\nRSI: ${x.report.rsi ?: "—"} | ATR: ${x.report.atr ?: "—"}\n" +
                                                 "حدضرر آزمایشی: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\n" +
                                                 "هدف ۱.۵R: ${x.target1} | هدف ۲R: ${x.target2}\n" +
