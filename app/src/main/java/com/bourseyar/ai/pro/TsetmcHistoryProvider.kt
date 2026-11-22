@@ -1,6 +1,7 @@
 package com.bourseyar.ai.pro
 
 import org.json.JSONObject
+import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -10,6 +11,8 @@ import java.util.Locale
 import java.util.TimeZone
 
 /** Public, unofficial TSETMC endpoints. Validate every response; provider availability is not guaranteed. */
+data class MarketLeader(val symbol: String, val instrumentCode: String, val volume: Double, val tradedValue: Double)
+
 object TsetmcHistoryProvider {
     private const val BASE = "https://cdn.tsetmc.com/api"
     private const val CHART = "https://members.tsetmc.com/tsev2/chart/data/Financial.aspx"
@@ -40,6 +43,43 @@ object TsetmcHistoryProvider {
         }
         val pos = ParsePosition(0)
         return parser.parse(value, pos) != null && pos.index == value.length
+    }
+
+    private fun JSONObject.number(vararg keys: String): Double {
+        for (key in keys) {
+            val value = opt(key)
+            val parsed = when (value) {
+                is Number -> value.toDouble()
+                is String -> value.replace(",", "").toDoubleOrNull()
+                else -> null
+            }
+            if (parsed != null && parsed.isFinite()) return parsed
+        }
+        return 0.0
+    }
+
+    /** Fetch a single all-market snapshot and rank instruments by reported traded value. */
+    fun fetchMarketLeaders(limit: Int = 20): List<MarketLeader> {
+        require(limit in 1..100) { "تعداد نماد باید بین ۱ تا ۱۰۰ باشد" }
+        val params = (0..8).joinToString("&") { "paperTypes%5B$it%5D=${it + 1}" }
+        val url = "$BASE/ClosingPrice/GetMarketWatch?market=0&industrialGroup=&$params&showTraded=false&withBestLimits=false&hEven=0&RefID=0"
+        val root = JSONObject(get(url))
+        val rows = root.optJSONArray("marketwatch")
+            ?: error("ساختار دیده‌بان بازار TSETMC تغییر کرده یا پاسخ مسدود شده است")
+        val leaders = (0 until rows.length()).mapNotNull { index ->
+            val row = rows.optJSONObject(index) ?: return@mapNotNull null
+            val code = row.optString("insCode")
+            val symbol = sequenceOf("lva", "lVal18AFC", "symbol").map { row.optString(it) }
+                .firstOrNull { it.isNotBlank() && it != "null" }.orEmpty()
+            val volume = row.number("qTotTran5J", "tvol", "volume")
+            val value = row.number("qTotCap", "tval", "tradedValue")
+            if (code.isBlank() || symbol.isBlank() || volume <= 0 || value <= 0) null
+            else MarketLeader(symbol, code, volume, value)
+        }
+        require(leaders.isNotEmpty()) {
+            "دیده‌بان بازار ردیف معتبر برنگرداند؛ ممکن است سرویس محدود یا ساختار پاسخ تغییر کرده باشد"
+        }
+        return leaders.sortedByDescending { it.tradedValue }.take(limit)
     }
 
     fun fetchDaily(symbol: String): HistoricalSeries {
