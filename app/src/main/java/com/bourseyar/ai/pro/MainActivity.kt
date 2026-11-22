@@ -161,9 +161,9 @@ class MainActivity : Activity() {
                                         card("فیلتر نقدشوندگی تقریبی", "حداقل میانگین حجم ۲۰ روز قبل: %.0f سهم. این فیلتر فقط تعداد سهم معامله‌شده را می‌سنجد؛ ارزش ریالی معاملات، سهام شناور، عمق سفارش‌ها، توقف نماد و امکان اجرای سفارش را تأیید نمی‌کند.".format(java.util.Locale.US, minAvgVol))
                                         fetchErrors.forEach { (symbol, result) -> card("خطای دریافت $symbol", result.exceptionOrNull()?.message ?: "نامشخص") }
                                         backtests.forEach { (symbol, rows) ->
-                                            card("بک‌تست $symbol | آستانه امتیاز $minScore", rows.joinToString("\\n") { b ->
+                                            card("بک‌تست $symbol | آستانه امتیاز $minScore", rows.joinToString("\n") { b ->
                                                 "نگهداری ${b.holdingDays} روز: ${b.trades} معامله | برد %.1f%% | میانگین بازده %.2f%% | PF %.2f | افت سرمایه %.2f%%".format(java.util.Locale.US, b.winRatePercent, b.averageReturnPercent, b.profitFactor, b.maxDrawdownPercent)
-                                            } + "\\nهزینه رفت‌وبرگشت اعمال‌شده: $feeBps bps. معاملات هم‌پوشان‌اند و نتیجه تضمین عملکرد آینده نیست.")
+                                            } + "\nهزینه رفت‌وبرگشت اعمال‌شده: $feeBps bps. معاملات هم‌پوشان‌اند و نتیجه تضمین عملکرد آینده نیست.")
                                         }
                                         card("منبع و محدودیت", "تاریخچه از API عمومی و غیررسمی TSETMC دریافت شده و قیمت‌های نموداری با گزینه تعدیل‌شده درخواست شده‌اند. این اتصال ممکن است محدود یا تغییر کند؛ نمادهای ناموجود/تاریخچه ناقص با خطا رد می‌شوند. هنوز اسکن کل بازار و راستی‌آزمایی لحظه‌ای وضعیت نماد انجام نمی‌شود.")
                                         symbolsInput.isEnabled = true
@@ -213,9 +213,9 @@ class MainActivity : Activity() {
                             })
                             series.forEach { item ->
                                 val bt = AnalysisEngine.backtest(item.candles, minScore, feeBps)
-                                card("بک‌تست ${item.symbol}", bt.joinToString("\\n") { b ->
+                                card("بک‌تست ${item.symbol}", bt.joinToString("\n") { b ->
                                     "${b.holdingDays} روز | ${b.trades} معامله | برد %.1f%% | میانگین %.2f%% | PF %.2f | افت سرمایه %.2f%%".format(java.util.Locale.US, b.winRatePercent, b.averageReturnPercent, b.profitFactor, b.maxDrawdownPercent)
-                                } + "\\nکارمزد رفت‌وبرگشت: $feeBps bps. ورود در بازشدن روز بعد، خروج با حدضرر/هدف یا پایان افق؛ معاملات هم‌پوشان‌اند.")
+                                } + "\nکارمزد رفت‌وبرگشت: $feeBps bps. ورود در بازشدن روز بعد، خروج با حدضرر/هدف یا پایان افق؛ معاملات هم‌پوشان‌اند.")
                             }
                             card("محدودیت مهم", "بک‌تست فقط یک شبیه‌سازی ساده تاریخی است؛ معاملات هم‌پوشان‌اند و افت سرمایه بر اساس توالی معاملات است، نه پرتفوی هم‌زمان. صف، لغزش قیمت و محدودیت دامنه نوسان لحاظ نشده و کارمزد فقط به‌صورت ورودی کاربر اعمال می‌شود. CSV باید از منبع معتبر و با قیمت‌های هم‌مقیاس تهیه شود؛ نتیجه توصیه قطعی خرید نیست.")
                         } catch (e: Exception) { card("خطا در CSV", e.message ?: "ساختار و داده‌ها را بررسی کنید") }
