@@ -4,8 +4,10 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import java.text.ParsePosition
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 /** Public, unofficial TSETMC endpoints. Validate every response; provider availability is not guaranteed. */
 object TsetmcHistoryProvider {
@@ -30,6 +32,16 @@ object TsetmcHistoryProvider {
         } finally { connection.disconnect() }
     }
 
+    private fun validChartDate(value: String): Boolean {
+        if (!value.matches(Regex("\\d{8}"))) return false
+        val parser = SimpleDateFormat("yyyyMMdd", Locale.US).apply {
+            isLenient = false
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        val pos = ParsePosition(0)
+        return parser.parse(value, pos) != null && pos.index == value.length
+    }
+
     fun fetchDaily(symbol: String): HistoricalSeries {
         val query = URLEncoder.encode(symbol.trim(), "UTF-8")
         val search = JSONObject(get("$BASE/Instrument/GetInstrumentSearch/$query"))
@@ -50,9 +62,7 @@ object TsetmcHistoryProvider {
             val p = row.trim().split(",")
             if (p.size < 7) return@mapNotNull null
             val dateText = p[0].trim()
-            val date = runCatching {
-                LocalDate.parse(dateText, DateTimeFormatter.BASIC_ISO_DATE)
-            }.getOrNull() ?: return@mapNotNull null
+            if (!validChartDate(dateText)) return@mapNotNull null
             val high = p[1].toDoubleOrNull() ?: return@mapNotNull null
             val low = p[2].toDoubleOrNull() ?: return@mapNotNull null
             val open = p[3].toDoubleOrNull() ?: return@mapNotNull null
@@ -62,7 +72,7 @@ object TsetmcHistoryProvider {
             if (listOf(high, low, open, last, volume, close).any { !it.isFinite() } ||
                 low <= 0 || open <= 0 || close <= 0 || high < maxOf(open, low, close) ||
                 low > minOf(open, close) || volume < 0) return@mapNotNull null
-            date to Candle(close = close, high = high, low = low, volume = volume)
+            dateText to Candle(close = close, high = high, low = low, volume = volume)
         }.sortedBy { it.first }
         require(candles.size >= 50) {
             "TSETMC برای $symbol فقط ${candles.size} کندل معتبر داد؛ حداقل ۵۰ لازم است"
