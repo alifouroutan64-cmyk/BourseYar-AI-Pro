@@ -105,11 +105,15 @@ class MainActivity : Activity() {
                         Thread {
                             try {
                                 val leaders = TsetmcHistoryProvider.fetchMarketLeaders(20)
+                                val flows = runCatching { TsetmcHistoryProvider.fetchClientFlowAll() }.getOrDefault(emptyMap())
                                 runOnUiThread {
                                     symbolsInput.setText(leaders.joinToString("، ") { it.symbol })
-                                    card("نمادهای پرتراکنش دیده‌بان", leaders.take(10).joinToString("\n") {
-                                        "${it.symbol} | حجم ${"%.0f".format(java.util.Locale.US, it.volume)} | ارزش گزارش‌شده ${"%.0f".format(java.util.Locale.US, it.tradedValue)}"
-                                    } + "\n۲۰ نماد برتر بر اساس ارزش گزارش‌شده انتخاب شدند. برای دریافت تاریخچه و اسکن، دکمه دریافت TSETMC را بزنید.")
+                                    card("نمادهای پرتراکنش دیده‌بان", leaders.take(10).joinToString("\n") { item ->
+                                        val flow = flows[item.instrumentCode]
+                                        val net = flow?.netIndividualVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود"
+                                        val perBuyer = flow?.individualBuyPerBuyer?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"
+                                        "${item.symbol} | حجم ${"%.0f".format(java.util.Locale.US, item.volume)} | ارزش گزارش‌شده ${"%.0f".format(java.util.Locale.US, item.tradedValue)} | خالص حقیقی: $net | میانگین خرید حقیقی: $perBuyer"
+                                    } + "\n۲۰ نماد برتر بر اساس ارزش گزارش‌شده انتخاب شدند. خالص حقیقی = خرید حقیقی منهای فروش حقیقی. این آمار، جریان آخرین جلسه موجود است و جایگزین بررسی چندروزه نیست. برای دریافت تاریخچه و اسکن، دکمه دریافت TSETMC را بزنید.")
                                     leadersButton.isEnabled = true
                                     leadersButton.text = "به‌روزرسانی ۲۰ نماد برتر بازار"
                                 }
