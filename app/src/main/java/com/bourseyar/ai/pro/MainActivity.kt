@@ -96,7 +96,7 @@ class MainActivity : Activity() {
                     setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
                 }
                 body.addView(symbolsInput)
-                body.addView(Button(this).apply {
+                val autoScanButton = Button(this).apply {
                     text = "دریافت تاریخچه از TSETMC و اسکن"
                     setOnClickListener {
                         val symbols = symbolsInput.text.toString().split(",", "،")
@@ -104,8 +104,8 @@ class MainActivity : Activity() {
                         if (symbols.isEmpty()) {
                             card("ورودی لازم است", "یک یا چند نماد را با ویرگول جدا کنید")
                         } else {
-                            isEnabled = false
-                            text = "در حال دریافت تاریخچه…"
+                            autoScanButton.isEnabled = false
+                            autoScanButton.text = "در حال دریافت تاریخچه…"
                             Thread {
                                 try {
                                     val series = symbols.map { TsetmcHistoryProvider.fetchDaily(it) }
@@ -123,17 +123,22 @@ class MainActivity : Activity() {
                                             })
                                         card("منبع و محدودیت", "تاریخچه از API عمومی و غیررسمی TSETMC دریافت شده و قیمت‌های نموداری با گزینه تعدیل‌شده درخواست شده‌اند. این اتصال ممکن است محدود یا تغییر کند؛ نمادهای ناموجود/تاریخچه ناقص با خطا رد می‌شوند. هنوز اسکن کل بازار و راستی‌آزمایی لحظه‌ای وضعیت نماد انجام نمی‌شود.")
                                         symbolsInput.isEnabled = true
+                                        autoScanButton.isEnabled = true
+                                        autoScanButton.text = "دریافت تاریخچه از TSETMC و اسکن"
                                     }
                                 } catch (e: Exception) {
                                     runOnUiThread {
                                         card("خطا در دریافت TSETMC", e.message ?: "خطای شبکه یا ساختار پاسخ")
                                         symbolsInput.isEnabled = true
+                                        autoScanButton.isEnabled = true
+                                        autoScanButton.text = "تلاش مجدد برای دریافت از TSETMC"
                                     }
                                 }
                             }.start()
                         }
                     }
-                })
+                }
+                body.addView(autoScanButton)
                 body.addView(Button(this).apply {
                     text = "اعتبارسنجی و اسکن CSV"
                     setOnClickListener {
