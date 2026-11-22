@@ -107,9 +107,9 @@ class MainActivity : Activity() {
                                 val leaders = TsetmcHistoryProvider.fetchMarketLeaders(20)
                                 runOnUiThread {
                                     symbolsInput.setText(leaders.joinToString("، ") { it.symbol })
-                                    card("نمادهای پرتراکنش دیده‌بان", leaders.take(10).joinToString("\\n") {
+                                    card("نمادهای پرتراکنش دیده‌بان", leaders.take(10).joinToString("\n") {
                                         "${it.symbol} | حجم ${"%.0f".format(java.util.Locale.US, it.volume)} | ارزش گزارش‌شده ${"%.0f".format(java.util.Locale.US, it.tradedValue)}"
-                                    } + "\\n۲۰ نماد برتر بر اساس ارزش گزارش‌شده انتخاب شدند. برای دریافت تاریخچه و اسکن، دکمه دریافت TSETMC را بزنید.")
+                                    } + "\n۲۰ نماد برتر بر اساس ارزش گزارش‌شده انتخاب شدند. برای دریافت تاریخچه و اسکن، دکمه دریافت TSETMC را بزنید.")
                                     leadersButton.isEnabled = true
                                     leadersButton.text = "به‌روزرسانی ۲۰ نماد برتر بازار"
                                 }
