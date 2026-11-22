@@ -19,6 +19,17 @@ data class TechnicalReport(
 
 /** Deterministic indicators; no fabricated fundamental data or trade guarantees. */
 object AnalysisEngine {
+    /** Normalized individual-money-flow score (0..100); null when inputs are incomplete or invalid. */
+    fun normalizedFlowScore(netIndividualValue: Double, grossIndividualValue: Double, positiveDays: Int, validDays: Int): Int? {
+        if (!netIndividualValue.isFinite() || !grossIndividualValue.isFinite() ||
+            grossIndividualValue <= 0.0 || positiveDays < 0 || validDays <= 0 || positiveDays > validDays ||
+            abs(netIndividualValue) > grossIndividualValue * 1.000001) return null
+        val pressurePercent = 100.0 * netIndividualValue / grossIndividualValue
+        val pressureScore = (pressurePercent.coerceIn(-100.0, 100.0) + 100.0) / 2.0
+        val consistencyScore = positiveDays.toDouble() / validDays * 100.0
+        return (0.7 * pressureScore + 0.3 * consistencyScore).toInt().coerceIn(0, 100)
+    }
+
     fun ema(values: List<Double>, period: Int): List<Double> {
         if (values.isEmpty() || period < 1) return emptyList()
         val alpha = 2.0 / (period + 1.0)
