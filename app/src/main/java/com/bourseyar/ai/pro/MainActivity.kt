@@ -96,21 +96,33 @@ class MainActivity : Activity() {
                     setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
                 }
                 body.addView(symbolsInput)
+                val minVolumeInput = EditText(this).apply {
+                    hint = "حداقل میانگین حجم روزانه ۲۰ روز (۰ = غیرفعال)"
+                    inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                    setText("0")
+                    setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
+                }
+                body.addView(minVolumeInput)
                 lateinit var autoScanButton: Button
                 autoScanButton = Button(this).apply {
                     text = "دریافت تاریخچه از TSETMC و اسکن"
                     setOnClickListener {
                         val symbols = symbolsInput.text.toString().split(",", "،")
                             .map { it.trim() }.filter { it.isNotBlank() }.distinct()
+                        val minAvgVol = minVolumeInput.text.toString().toDoubleOrNull()
                         if (symbols.isEmpty()) {
                             card("ورودی لازم است", "یک یا چند نماد را با ویرگول جدا کنید")
+                        } else if (minAvgVol == null || !minAvgVol.isFinite() || minAvgVol < 0) {
+                            card("فیلتر حجم نامعتبر", "حداقل حجم را به صورت عدد صحیح نامنفی وارد کنید")
                         } else {
                             autoScanButton.isEnabled = false
+                            symbolsInput.isEnabled = false
+                            minVolumeInput.isEnabled = false
                             autoScanButton.text = "در حال دریافت تاریخچه…"
                             Thread {
                                 try {
                                     val series = symbols.map { TsetmcHistoryProvider.fetchDaily(it) }
-                                    val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles) }
+                                    val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles, minAvgVol) }
                                         .sortedByDescending { it.report.score }
                                     runOnUiThread {
                                         card("نتیجه اسکن خودکار TSETMC | ${results.size} نماد",
@@ -122,8 +134,10 @@ class MainActivity : Activity() {
                                                 "ریسک فاصله حدضرر: %.2f%%".format(java.util.Locale.US, x.riskPercent) +
                                                 "\n" + x.report.notes.joinToString("؛ ")
                                             })
+                                        card("فیلتر نقدشوندگی تقریبی", "حداقل میانگین حجم ۲۰ روز قبل: %.0f سهم. این فیلتر فقط تعداد سهم معامله‌شده را می‌سنجد؛ ارزش ریالی معاملات، سهام شناور، عمق سفارش‌ها، توقف نماد و امکان اجرای سفارش را تأیید نمی‌کند.".format(java.util.Locale.US, minAvgVol))
                                         card("منبع و محدودیت", "تاریخچه از API عمومی و غیررسمی TSETMC دریافت شده و قیمت‌های نموداری با گزینه تعدیل‌شده درخواست شده‌اند. این اتصال ممکن است محدود یا تغییر کند؛ نمادهای ناموجود/تاریخچه ناقص با خطا رد می‌شوند. هنوز اسکن کل بازار و راستی‌آزمایی لحظه‌ای وضعیت نماد انجام نمی‌شود.")
                                         symbolsInput.isEnabled = true
+                                        minVolumeInput.isEnabled = true
                                         autoScanButton.isEnabled = true
                                         autoScanButton.text = "دریافت تاریخچه از TSETMC و اسکن"
                                     }
@@ -131,6 +145,7 @@ class MainActivity : Activity() {
                                     runOnUiThread {
                                         card("خطا در دریافت TSETMC", e.message ?: "خطای شبکه یا ساختار پاسخ")
                                         symbolsInput.isEnabled = true
+                                        minVolumeInput.isEnabled = true
                                         autoScanButton.isEnabled = true
                                         autoScanButton.text = "تلاش مجدد برای دریافت از TSETMC"
                                     }
