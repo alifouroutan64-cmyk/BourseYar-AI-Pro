@@ -7,6 +7,8 @@ import kotlin.math.sqrt
 
 data class Candle(val close: Double, val high: Double = close, val low: Double = close, val volume: Double = 0.0)
 data class RenkoBrick(val close: Double, val direction: Int)
+data class ScanCandidate(val symbol: String, val report: TechnicalReport, val riskPercent: Double, val target1: Double, val target2: Double)
+
 data class TechnicalReport(
     val last: Double, val rsi: Double?, val ema20: Double?, val ema50: Double?,
     val macd: Double?, val macdSignal: Double?, val atr: Double?,
@@ -85,6 +87,27 @@ object AnalysisEngine {
         score = score.coerceIn(0, 100)
         val trend = when { closes.last() > e20 && (e50 == null || e20 > e50) -> "صعودی"; closes.last() < e20 -> "نزولی"; else -> "خنثی" }
         return TechnicalReport(closes.last(), r, e20, e50, macd, signal, a, support, resistance, trend, score, notes)
+    }
+
+    /** Historical close-only screening. Not a live signal or liquidity confirmation. */
+    fun scanSeries(symbol: String, closes: List<Double>): ScanCandidate? {
+        if (symbol.isBlank() || closes.size < 50 || closes.any { !it.isFinite() || it <= 0.0 }) return null
+        val report = analyze(closes.map { Candle(it) }) ?: return null
+        val last = closes.last()
+        val priorHigh = closes.dropLast(1).takeLast(20).maxOrNull() ?: return null
+        val momentum5 = (last / closes[closes.size - 6] - 1.0) * 100.0
+        val breakout = last > priorHigh
+        val risk = (report.atr ?: last * 0.04).coerceAtLeast(last * 0.01)
+        val score = (report.score + (if (breakout) 10 else 0) +
+            (if (momentum5 in 0.5..8.0) 8 else if (momentum5 < -3.0) -8 else 0)).coerceIn(0, 100)
+        val notes = report.notes + listOf(
+            if (breakout) "شکست سقف ۲۰ دوره‌ای در داده ورودی" else "شکست سقف ۲۰ دوره‌ای تأیید نشده",
+            "بازده ۵ دوره اخیر: %.2f%%".format(java.util.Locale.US, momentum5),
+            "حجم و نقدشوندگی بررسی نشده‌اند؛ این نتیجه فقط فهرست پیگیری است"
+        )
+        val ranked = report.copy(score = score, notes = notes)
+        return ScanCandidate(symbol.trim().uppercase(), ranked, risk / last * 100.0,
+            target(last, risk, 1.5), target(last, risk, 2.0))
     }
 
     fun renko(closes: List<Double>, boxSize: Double): List<RenkoBrick> {
