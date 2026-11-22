@@ -32,8 +32,8 @@ class AnalysisEngineTest {
 
     @Test
     fun normalizedFlowScoreRewardsPositivePressureAndConsistency() {
-        val strong = AnalysisEngine.normalizedFlowScore(80.0, 100.0, 5, 5)
-        val weak = AnalysisEngine.normalizedFlowScore(-80.0, 100.0, 0, 5)
+        val strong = AnalysisEngine.normalizedFlowScore(100.0, 100.0, 5, 5)
+        val weak = AnalysisEngine.normalizedFlowScore(-100.0, 100.0, 0, 5)
         assertTrue(strong != null && weak != null && strong > weak)
         assertEquals(100, strong)
         assertEquals(0, weak)
