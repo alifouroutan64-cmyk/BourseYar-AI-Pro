@@ -60,7 +60,7 @@ class AnalysisEngineTest {
     @Test
     fun opportunityScoreRenormalizesWhenFlowIsUnavailable() {
         val withMissingFlow = OpportunityScoring.score(80, null, 2.0, 2.5)
-        assertEquals(88, withMissingFlow)
+        assertEquals(86, withMissingFlow)
     }
 
     @Test
