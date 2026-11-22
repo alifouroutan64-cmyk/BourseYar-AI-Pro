@@ -144,7 +144,7 @@ object AnalysisEngine {
 
     /**
      * Walk-forward simulation: signal uses candles through day t; entry is next day's open.
-     * Stop/target are fixed from signal-day ATR. If both touch on one candle, stop is assumed first.
+     * Stop/target are entry-relative using signal-day ATR; scanner score gates the simulated entry. If both touch on one candle, stop is assumed first.
      * Positions may overlap. Fee is round-trip basis points.
      */
     fun backtest(candles: List<Candle>, minScore: Int = 70, feeBpsRoundTrip: Double = 0.0): List<BacktestSummary> {
@@ -155,13 +155,16 @@ object AnalysisEngine {
         return (2..7).map { horizon ->
             val returns = mutableListOf<Double>()
             for (signalIndex in 49 until candles.size - horizon) {
-                val report = analyze(candles.subList(0, signalIndex + 1)) ?: continue
-                if (report.score < minScore) continue
+                val signalHistory = candles.subList(0, signalIndex + 1)
+                val candidate = scanCandles("BACKTEST", signalHistory) ?: continue
+                if (candidate.report.score < minScore) continue
+                val report = candidate.report
                 val entryIndex = signalIndex + 1
                 val entry = candles[entryIndex].open
                 val atrRisk = (report.atr ?: report.last * 0.04).coerceAtLeast(report.last * 0.01)
-                val stop = report.last - atrRisk
-                val targetPrice = report.last + atrRisk * 1.5
+                // Anchor stop and target to the actual next-session entry, not the prior close.
+                val stop = entry - atrRisk
+                val targetPrice = entry + atrRisk * 1.5
                 if (entry <= 0 || stop <= 0) continue
                 var exit = candles[minOf(entryIndex + horizon - 1, candles.lastIndex)].close
                 for (day in entryIndex..minOf(entryIndex + horizon - 1, candles.lastIndex)) {
