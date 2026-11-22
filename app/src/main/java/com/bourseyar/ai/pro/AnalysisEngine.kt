@@ -110,6 +110,34 @@ object AnalysisEngine {
             target(last, risk, 1.5), target(last, risk, 2.0))
     }
 
+    /** OHLCV-aware historical scanner. Requires at least 50 daily candles. */
+    fun scanCandles(symbol: String, candles: List<Candle>): ScanCandidate? {
+        if (symbol.isBlank() || candles.size < 50) return null
+        if (candles.any { !it.close.isFinite() || !it.high.isFinite() || !it.low.isFinite() ||
+                !it.volume.isFinite() || it.close <= 0 || it.low <= 0 || it.high < max(it.close, it.low) || it.volume < 0 }) return null
+        val report = analyze(candles) ?: return null
+        val last = candles.last().close
+        val prior = candles.dropLast(1).takeLast(20)
+        if (prior.isEmpty()) return null
+        val breakout = last > prior.maxOf { it.high }
+        val avgVol20 = prior.takeLast(20).map { it.volume }.average()
+        val volRatio = if (avgVol20 > 0) candles.last().volume / avgVol20 else 0.0
+        val momentum5 = (last / candles[candles.size - 6].close - 1.0) * 100.0
+        val risk = (report.atr ?: last * 0.04).coerceAtLeast(last * 0.01)
+        val volumeBonus = if (volRatio >= 1.5) 8 else if (volRatio >= 1.0) 3 else -4
+        val score = (report.score + (if (breakout) 10 else 0) + volumeBonus +
+            (if (momentum5 in 0.5..8.0) 8 else if (momentum5 < -3.0) -8 else 0)).coerceIn(0, 100)
+        val notes = report.notes + listOf(
+            if (breakout) "شکست سقف ۲۰ کندل قبلی تأیید شد" else "شکست سقف ۲۰ کندل قبلی تأیید نشد",
+            "حجم امروز نسبت به میانگین ۲۰ کندل: %.2fx".format(java.util.Locale.US, volRatio),
+            "بازده ۵ کندل اخیر: %.2f%%".format(java.util.Locale.US, momentum5),
+            "فیلتر حجم، ارزش معاملات و وضعیت نماد را جایگزین بررسی نقدشوندگی نمی‌کند"
+        )
+        val ranked = report.copy(score = score, notes = notes)
+        return ScanCandidate(symbol.trim().uppercase(), ranked, risk / last * 100.0,
+            target(last, risk, 1.5), target(last, risk, 2.0))
+    }
+
     fun renko(closes: List<Double>, boxSize: Double): List<RenkoBrick> {
         if (closes.isEmpty() || boxSize <= 0) return emptyList()
         val bricks = mutableListOf<RenkoBrick>()
