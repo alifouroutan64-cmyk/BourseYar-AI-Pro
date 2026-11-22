@@ -122,10 +122,10 @@ class MainActivity : Activity() {
                                         if (gross <= 0) return@mapNotNull null
                                         val net = valid.sumOf { it.netIndividualValue!! }
                                         val pressurePct = 100.0 * net / gross
-                                        val positiveRatio = valid.count { it.netIndividualValue!! > 0 }.toDouble() / valid.size
-                                        val pressureScore = ((pressurePct.coerceIn(-100.0, 100.0) + 100.0) / 2.0)
-                                        val flowScore = (0.7 * pressureScore + 0.3 * positiveRatio * 100.0).toInt().coerceIn(0, 100)
-                                        Triple(item, flowScore, Triple(pressurePct, valid.count { it.netIndividualValue!! > 0 }, valid.size))
+                                        val positiveDays = valid.count { it.netIndividualValue!! > 0 }
+                                        val flowScore = AnalysisEngine.normalizedFlowScore(net, gross, positiveDays, valid.size)
+                                            ?: return@mapNotNull null
+                                        Triple(item, flowScore, Triple(pressurePct, positiveDays, valid.size))
                                     }.sortedByDescending { it.second }
                                     val flowText = flowRanked.joinToString("\n") { (item, score, stats) ->
                                         val flow = flows[item.instrumentCode]
