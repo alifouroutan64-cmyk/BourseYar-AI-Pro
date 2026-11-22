@@ -12,6 +12,12 @@ import java.util.TimeZone
 
 /** Public, unofficial TSETMC endpoints. Validate every response; provider availability is not guaranteed. */
 data class MarketLeader(val symbol: String, val instrumentCode: String, val volume: Double, val tradedValue: Double)
+data class ClientFlow(
+    val netIndividualVolume: Double,
+    val netLegalVolume: Double,
+    val individualBuyPerBuyer: Double?,
+    val individualSellPerSeller: Double?
+)
 
 object TsetmcHistoryProvider {
     private const val BASE = "https://cdn.tsetmc.com/api"
@@ -56,6 +62,33 @@ object TsetmcHistoryProvider {
             if (parsed != null && parsed.isFinite()) return parsed
         }
         return 0.0
+    }
+
+    /** Bulk حقیقی/حقوقی flow snapshot for the latest available trading session. */
+    fun fetchClientFlowAll(): Map<String, ClientFlow> {
+        val root = JSONObject(get("$BASE/ClientType/GetClientTypeAll"))
+        val rows = root.optJSONArray("clientTypeAllDto")
+            ?: error("ساختار جریان حقیقی/حقوقی TSETMC تغییر کرده است")
+        val result = linkedMapOf<String, ClientFlow>()
+        for (index in 0 until rows.length()) {
+            val row = rows.optJSONObject(index) ?: continue
+            val code = row.optString("insCode")
+            if (code.isBlank()) continue
+            val buyI = row.number("buy_I_Volume", "buyIVolume")
+            val sellI = row.number("sell_I_Volume", "sellIVolume")
+            val buyN = row.number("buy_N_Volume", "buyNVolume")
+            val sellN = row.number("sell_N_Volume", "sellNVolume")
+            val buyCountI = row.number("buy_CountI", "buy_I_Count", "buyCountI")
+            val sellCountI = row.number("sell_CountI", "sell_I_Count", "sellCountI")
+            result[code] = ClientFlow(
+                buyI - sellI,
+                buyN - sellN,
+                if (buyCountI > 0) buyI / buyCountI else null,
+                if (sellCountI > 0) sellI / sellCountI else null
+            )
+        }
+        require(result.isNotEmpty()) { "داده جریان حقیقی/حقوقی خالی است یا سرویس پاسخ معتبر نداد" }
+        return result
     }
 
     /** Fetch a single all-market snapshot and rank instruments by reported traded value. */
