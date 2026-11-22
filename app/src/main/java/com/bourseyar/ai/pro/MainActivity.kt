@@ -210,7 +210,10 @@ class MainActivity : Activity() {
                                         val averageVolume = previousVolumes.average()
                                         val relativeVolume = if (averageVolume > 0.0) data.candles.last().volume / averageVolume else null
                                         val flowScore = flowScores[data.symbol]
-                                        val composite = OpportunityScoring.score(candidate.report.score, flowScore, relativeVolume, 1.5)
+                                        val stopPrice = candidate.report.last * (1.0 - candidate.riskPercent / 100.0)
+                                        val riskAmount = candidate.report.last - stopPrice
+                                        val rewardRisk = if (riskAmount > 0.0) (candidate.target1 - candidate.report.last) / riskAmount else null
+                                        val composite = OpportunityScoring.score(candidate.report.score, flowScore, relativeVolume, rewardRisk)
                                         Triple(candidate, composite, Pair(relativeVolume, flowScore))
                                     }.sortedByDescending { it.second ?: -1 }
                                     val backtests = series.map { it.symbol to AnalysisEngine.backtest(it.candles, minScore, feeBps) }
@@ -219,7 +222,7 @@ class MainActivity : Activity() {
                                         card("نتیجه اسکن خودکار TSETMC | ${results.size} نماد",
                                             results.joinToString("\n\n") { row ->
                                                 val x = row.first
-                                                "${x.symbol} | امتیاز تکنیکال ${x.report.score}/100 | امتیاز ترکیبی موقت ${row.second ?: "—"}/100 | روند ${x.report.trend}\n" +
+                                                "${x.symbol} | امتیاز تکنیکال ${x.report.score}/100 | امتیاز ترکیبی ${row.second ?: "—"}/100 | روند ${x.report.trend}\n" +
                                                 "حجم نسبی: ${row.third.first?.let { "%.2fx".format(java.util.Locale.US, it) } ?: "ناموجود"} | امتیاز جریان پول ۵ جلسه: ${row.third.second ?: "ناموجود"}\n" +
                                                 "آخرین قیمت تعدیل‌شده: ${x.report.last}\nRSI: ${x.report.rsi ?: "—"} | ATR: ${x.report.atr ?: "—"}\n" +
                                                 "حدضرر آزمایشی: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\n" +
