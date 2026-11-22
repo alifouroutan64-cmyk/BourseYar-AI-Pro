@@ -91,6 +91,49 @@ class MainActivity : Activity() {
                     minLines = 8; gravity = Gravity.TOP
                 }
                 body.addView(input)
+                val symbolsInput = EditText(this).apply {
+                    hint = "نمادها برای دریافت خودکار: فولاد، فملی، شپنا"
+                    setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
+                }
+                body.addView(symbolsInput)
+                body.addView(Button(this).apply {
+                    text = "دریافت تاریخچه از TSETMC و اسکن"
+                    setOnClickListener {
+                        val symbols = symbolsInput.text.toString().split(",", "،")
+                            .map { it.trim() }.filter { it.isNotBlank() }.distinct()
+                        if (symbols.isEmpty()) {
+                            card("ورودی لازم است", "یک یا چند نماد را با ویرگول جدا کنید")
+                        } else {
+                            isEnabled = false
+                            text = "در حال دریافت تاریخچه…"
+                            Thread {
+                                try {
+                                    val series = symbols.map { TsetmcHistoryProvider.fetchDaily(it) }
+                                    val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles) }
+                                        .sortedByDescending { it.report.score }
+                                    runOnUiThread {
+                                        card("نتیجه اسکن خودکار TSETMC | ${results.size} نماد",
+                                            results.joinToString("\\n\\n") { x ->
+                                                "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\\n" +
+                                                "آخرین قیمت تعدیل‌شده: ${x.report.last}\\nRSI: ${x.report.rsi ?: "—"} | ATR: ${x.report.atr ?: "—"}\\n" +
+                                                "حدضرر آزمایشی: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\\n" +
+                                                "هدف ۱.۵R: ${x.target1} | هدف ۲R: ${x.target2}\\n" +
+                                                "ریسک فاصله حدضرر: %.2f%%".format(java.util.Locale.US, x.riskPercent) +
+                                                "\\n" + x.report.notes.joinToString("؛ ")
+                                            })
+                                        card("منبع و محدودیت", "تاریخچه از API عمومی و غیررسمی TSETMC دریافت شده و قیمت‌های نموداری با گزینه تعدیل‌شده درخواست شده‌اند. این اتصال ممکن است محدود یا تغییر کند؛ نمادهای ناموجود/تاریخچه ناقص با خطا رد می‌شوند. هنوز اسکن کل بازار و راستی‌آزمایی لحظه‌ای وضعیت نماد انجام نمی‌شود.")
+                                        symbolsInput.isEnabled = true
+                                    }
+                                } catch (e: Exception) {
+                                    runOnUiThread {
+                                        card("خطا در دریافت TSETMC", e.message ?: "خطای شبکه یا ساختار پاسخ")
+                                        symbolsInput.isEnabled = true
+                                    }
+                                }
+                            }.start()
+                        }
+                    }
+                })
                 body.addView(Button(this).apply {
                     text = "اعتبارسنجی و اسکن CSV"
                     setOnClickListener {
