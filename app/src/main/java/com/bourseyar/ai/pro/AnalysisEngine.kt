@@ -111,8 +111,8 @@ object AnalysisEngine {
     }
 
     /** OHLCV-aware historical scanner. Requires at least 50 daily candles. */
-    fun scanCandles(symbol: String, candles: List<Candle>): ScanCandidate? {
-        if (symbol.isBlank() || candles.size < 50) return null
+    fun scanCandles(symbol: String, candles: List<Candle>, minAverageVolume: Double = 0.0): ScanCandidate? {
+        if (symbol.isBlank() || candles.size < 50 || !minAverageVolume.isFinite() || minAverageVolume < 0) return null
         if (candles.any { !it.close.isFinite() || !it.high.isFinite() || !it.low.isFinite() ||
                 !it.volume.isFinite() || it.close <= 0 || it.low <= 0 || it.high < max(it.close, it.low) || it.volume < 0 }) return null
         val report = analyze(candles) ?: return null
@@ -121,6 +121,7 @@ object AnalysisEngine {
         if (prior.isEmpty()) return null
         val breakout = last > prior.maxOf { it.high }
         val avgVol20 = prior.takeLast(20).map { it.volume }.average()
+        if (minAverageVolume > 0 && avgVol20 < minAverageVolume) return null
         val volRatio = if (avgVol20 > 0) candles.last().volume / avgVol20 else 0.0
         val momentum5 = (last / candles[candles.size - 6].close - 1.0) * 100.0
         val risk = (report.atr ?: last * 0.04).coerceAtLeast(last * 0.01)
@@ -129,7 +130,9 @@ object AnalysisEngine {
             (if (momentum5 in 0.5..8.0) 8 else if (momentum5 < -3.0) -8 else 0)).coerceIn(0, 100)
         val notes = report.notes + listOf(
             if (breakout) "شکست سقف ۲۰ کندل قبلی تأیید شد" else "شکست سقف ۲۰ کندل قبلی تأیید نشد",
+            "میانگین حجم ۲۰ روز قبل: %.0f سهم".format(java.util.Locale.US, avgVol20),
             "حجم امروز نسبت به میانگین ۲۰ کندل: %.2fx".format(java.util.Locale.US, volRatio),
+            if (minAverageVolume > 0) "فیلتر حداقل میانگین حجم %.0f سهم اعمال شد".format(java.util.Locale.US, minAverageVolume) else "فیلتر حداقل حجم غیرفعال است",
             "بازده ۵ کندل اخیر: %.2f%%".format(java.util.Locale.US, momentum5),
             "فیلتر حجم، ارزش معاملات و وضعیت نماد را جایگزین بررسی نقدشوندگی نمی‌کند"
         )
