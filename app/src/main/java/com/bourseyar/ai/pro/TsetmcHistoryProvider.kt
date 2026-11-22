@@ -176,6 +176,33 @@ object TsetmcHistoryProvider {
         return leaders.sortedByDescending { it.tradedValue }.take(limit)
     }
 
+
+    /** Fetch a conservative five-session money-flow score for a symbol; null means unavailable. */
+    fun fetchFiveSessionFlowScore(symbol: String): Int? {
+        val query = URLEncoder.encode(symbol.trim(), "UTF-8")
+        val search = JSONObject(get("$BASE/Instrument/GetInstrumentSearch/$query"))
+        val items = search.optJSONArray("instrumentSearch")
+            ?: error("ساختار جستجوی نماد برای جریان پول تغییر کرده است")
+        val normalized = symbol.trim().replace("ي", "ی").replace("ك", "ک")
+        val match = (0 until items.length()).map { items.getJSONObject(it) }
+            .firstOrNull {
+                it.optString("lVal18AFC").replace("ي", "ی").replace("ك", "ک") == normalized
+            } ?: return null
+        val code = match.optString("insCode")
+        if (code.isBlank()) return null
+        val days = fetchClientFlowHistory(code).takeLast(5)
+        val valid = days.mapNotNull { day ->
+            val net = day.netIndividualValue
+            val gross = day.grossIndividualValue
+            if (net == null || gross == null || gross <= 0.0) null else day to (net to gross)
+        }
+        if (valid.isEmpty()) return null
+        val netTotal = valid.sumOf { it.second.first }
+        val grossTotal = valid.sumOf { it.second.second }
+        val positive = valid.count { it.second.first > 0.0 }
+        return AnalysisEngine.normalizedFlowScore(netTotal, grossTotal, positive, valid.size)
+    }
+
     fun fetchDaily(symbol: String): HistoricalSeries {
         val query = URLEncoder.encode(symbol.trim(), "UTF-8")
         val search = JSONObject(get("$BASE/Instrument/GetInstrumentSearch/$query"))
