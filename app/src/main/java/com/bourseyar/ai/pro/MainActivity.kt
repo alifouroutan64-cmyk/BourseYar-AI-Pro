@@ -141,10 +141,13 @@ class MainActivity : Activity() {
                             autoScanButton.text = "در حال دریافت تاریخچه…"
                             Thread {
                                 try {
-                                    val series = symbols.map { TsetmcHistoryProvider.fetchDaily(it) }
+                                    val attempts = symbols.map { symbol -> symbol to runCatching { TsetmcHistoryProvider.fetchDaily(symbol) } }
+                                    val series = attempts.mapNotNull { it.second.getOrNull() }
+                                    require(series.isNotEmpty()) { attempts.joinToString("؛ ") { (symbol, result) -> "$symbol: ${result.exceptionOrNull()?.message ?: "دریافت نشد"}" } }
                                     val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles, minAvgVol) }
                                         .sortedByDescending { it.report.score }
                                     val backtests = series.map { it.symbol to AnalysisEngine.backtest(it.candles, minScore, feeBps) }
+                                    val fetchErrors = attempts.filter { it.second.isFailure }
                                     runOnUiThread {
                                         card("نتیجه اسکن خودکار TSETMC | ${results.size} نماد",
                                             results.joinToString("\n\n") { x ->
@@ -156,6 +159,7 @@ class MainActivity : Activity() {
                                                 "\n" + x.report.notes.joinToString("؛ ")
                                             })
                                         card("فیلتر نقدشوندگی تقریبی", "حداقل میانگین حجم ۲۰ روز قبل: %.0f سهم. این فیلتر فقط تعداد سهم معامله‌شده را می‌سنجد؛ ارزش ریالی معاملات، سهام شناور، عمق سفارش‌ها، توقف نماد و امکان اجرای سفارش را تأیید نمی‌کند.".format(java.util.Locale.US, minAvgVol))
+                                        fetchErrors.forEach { (symbol, result) -> card("خطای دریافت $symbol", result.exceptionOrNull()?.message ?: "نامشخص") }
                                         backtests.forEach { (symbol, rows) ->
                                             card("بک‌تست $symbol | آستانه امتیاز $minScore", rows.joinToString("\\n") { b ->
                                                 "نگهداری ${b.holdingDays} روز: ${b.trades} معامله | برد %.1f%% | میانگین بازده %.2f%% | PF %.2f | افت سرمایه %.2f%%".format(java.util.Locale.US, b.winRatePercent, b.averageReturnPercent, b.profitFactor, b.maxDrawdownPercent)
@@ -190,10 +194,14 @@ class MainActivity : Activity() {
                     setOnClickListener {
                         try {
                             val series = MarketCsvParser.parse(input.text.toString())
-                            val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles) }
+                            val minAvgVol = minVolumeInput.text.toString().toDoubleOrNull()
+                                ?.takeIf { it.isFinite() && it >= 0 } ?: error("حداقل میانگین حجم نامعتبر است")
+                            val minScore = scoreInput.text.toString().toIntOrNull()?.takeIf { it in 0..100 }
+                                ?: error("حداقل امتیاز باید بین ۰ تا ۱۰۰ باشد")
+                            val feeBps = feeInput.text.toString().toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 }
+                                ?: error("هزینه رفت‌وبرگشت نامعتبر است")
+                            val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles, minAvgVol) }
                                 .sortedByDescending { it.report.score }
-                            val minScore = scoreInput.text.toString().toIntOrNull()?.takeIf { it in 0..100 } ?: 70
-                            val feeBps = feeInput.text.toString().toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 } ?: 0.0
                             require(results.isNotEmpty()) { "هیچ سری معتبر برای اسکن پیدا نشد" }
                             card("نتیجه اسکن | ${results.size} نماد", results.joinToString("\n\n") { x ->
                                 "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\n" +
@@ -209,7 +217,7 @@ class MainActivity : Activity() {
                                     "${b.holdingDays} روز | ${b.trades} معامله | برد %.1f%% | میانگین %.2f%% | PF %.2f | افت سرمایه %.2f%%".format(java.util.Locale.US, b.winRatePercent, b.averageReturnPercent, b.profitFactor, b.maxDrawdownPercent)
                                 } + "\\nکارمزد رفت‌وبرگشت: $feeBps bps. ورود در بازشدن روز بعد، خروج با حدضرر/هدف یا پایان افق؛ معاملات هم‌پوشان‌اند.")
                             }
-                            card("محدودیت مهم", "بک‌تست فقط یک شبیه‌سازی ساده تاریخی است؛ معاملات هم‌پوشان‌اند، صف و لغزش قیمت و محدودیت دامنه نوسان لحاظ نشده و کارمزد فقط به‌صورت ورودی کاربر اعمال می‌شود. CSV باید از منبع معتبر و با قیمت‌های هم‌مقیاس تهیه شود؛ نتیجه توصیه قطعی خرید نیست.")
+                            card("محدودیت مهم", "بک‌تست فقط یک شبیه‌سازی ساده تاریخی است؛ معاملات هم‌پوشان‌اند و افت سرمایه بر اساس توالی معاملات است، نه پرتفوی هم‌زمان. صف، لغزش قیمت و محدودیت دامنه نوسان لحاظ نشده و کارمزد فقط به‌صورت ورودی کاربر اعمال می‌شود. CSV باید از منبع معتبر و با قیمت‌های هم‌مقیاس تهیه شود؛ نتیجه توصیه قطعی خرید نیست.")
                         } catch (e: Exception) { card("خطا در CSV", e.message ?: "ساختار و داده‌ها را بررسی کنید") }
                     }
                 })
