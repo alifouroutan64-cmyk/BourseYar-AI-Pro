@@ -96,7 +96,8 @@ class MainActivity : Activity() {
                     setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
                 }
                 body.addView(symbolsInput)
-                val autoScanButton = Button(this).apply {
+                lateinit var autoScanButton: Button
+                autoScanButton = Button(this).apply {
                     text = "دریافت تاریخچه از TSETMC و اسکن"
                     setOnClickListener {
                         val symbols = symbolsInput.text.toString().split(",", "،")
@@ -113,13 +114,13 @@ class MainActivity : Activity() {
                                         .sortedByDescending { it.report.score }
                                     runOnUiThread {
                                         card("نتیجه اسکن خودکار TSETMC | ${results.size} نماد",
-                                            results.joinToString("\\n\\n") { x ->
-                                                "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\\n" +
-                                                "آخرین قیمت تعدیل‌شده: ${x.report.last}\\nRSI: ${x.report.rsi ?: "—"} | ATR: ${x.report.atr ?: "—"}\\n" +
-                                                "حدضرر آزمایشی: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\\n" +
-                                                "هدف ۱.۵R: ${x.target1} | هدف ۲R: ${x.target2}\\n" +
+                                            results.joinToString("\n\n") { x ->
+                                                "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\n" +
+                                                "آخرین قیمت تعدیل‌شده: ${x.report.last}\nRSI: ${x.report.rsi ?: "—"} | ATR: ${x.report.atr ?: "—"}\n" +
+                                                "حدضرر آزمایشی: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\n" +
+                                                "هدف ۱.۵R: ${x.target1} | هدف ۲R: ${x.target2}\n" +
                                                 "ریسک فاصله حدضرر: %.2f%%".format(java.util.Locale.US, x.riskPercent) +
-                                                "\\n" + x.report.notes.joinToString("؛ ")
+                                                "\n" + x.report.notes.joinToString("؛ ")
                                             })
                                         card("منبع و محدودیت", "تاریخچه از API عمومی و غیررسمی TSETMC دریافت شده و قیمت‌های نموداری با گزینه تعدیل‌شده درخواست شده‌اند. این اتصال ممکن است محدود یا تغییر کند؛ نمادهای ناموجود/تاریخچه ناقص با خطا رد می‌شوند. هنوز اسکن کل بازار و راستی‌آزمایی لحظه‌ای وضعیت نماد انجام نمی‌شود.")
                                         symbolsInput.isEnabled = true
@@ -147,13 +148,13 @@ class MainActivity : Activity() {
                             val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles) }
                                 .sortedByDescending { it.report.score }
                             require(results.isNotEmpty()) { "هیچ سری معتبر برای اسکن پیدا نشد" }
-                            card("نتیجه اسکن | ${results.size} نماد", results.joinToString("\\n\\n") { x ->
-                                "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\\n" +
-                                "آخرین قیمت: ${x.report.last}\\nRSI: ${x.report.rsi ?: "—"} | ATR: ${x.report.atr ?: "—"}\\n" +
-                                "حدضرر آزمایشی ATR: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\\n" +
-                                "هدف ۱.۵R: ${x.target1} | هدف ۲R: ${x.target2}\\n" +
+                            card("نتیجه اسکن | ${results.size} نماد", results.joinToString("\n\n") { x ->
+                                "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\n" +
+                                "آخرین قیمت: ${x.report.last}\nRSI: ${x.report.rsi ?: "—"} | ATR: ${x.report.atr ?: "—"}\n" +
+                                "حدضرر آزمایشی ATR: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\n" +
+                                "هدف ۱.۵R: ${x.target1} | هدف ۲R: ${x.target2}\n" +
                                 "ریسک فاصله حدضرر: %.2f%%".format(java.util.Locale.US, x.riskPercent) +
-                                "\\n" + x.report.notes.joinToString("؛ ")
+                                "\n" + x.report.notes.joinToString("؛ ")
                             })
                             card("محدودیت مهم", "اسکنر از OHLCV و حجم نسبی استفاده می‌کند، اما صف، ارزش معاملات، توقف نماد، تعدیلات شرکتی و داده زنده را تأیید نمی‌کند. CSV باید از منبع معتبر و با قیمت‌های هم‌مقیاس تهیه شود؛ نتیجه توصیه قطعی خرید نیست.")
                         } catch (e: Exception) { card("خطا در CSV", e.message ?: "ساختار و داده‌ها را بررسی کنید") }
