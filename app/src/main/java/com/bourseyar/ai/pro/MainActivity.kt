@@ -84,30 +84,34 @@ class MainActivity : Activity() {
                 card("هشدار", "امتیاز الگوریتمی احتمال موفقیت را تضمین نمی‌کند و توصیه خرید/فروش نیست. برای سیگنال معتبر، تاریخچه تعدیل‌شده و داده حجم/معاملات لازم است.")
             }
             "اسکنر" -> {
-                card("اسکنر آزمایشی نوسان‌گیری", "برای هر نماد یک ردیف وارد کنید: نماد;قیمت‌های پایانی تاریخی با کاما جداشده. حداقل ۵۰ قیمت برای هر نماد لازم است. داده باید به‌ترتیب زمانی و از منبع معتبر/تعدیل‌شده باشد.")
-                val input = EditText(this).apply { hint = "نمونه:\nفولاد;2500,2510,2490,...\nفملی;..."; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); minLines = 5; gravity = Gravity.TOP }
+                card("اسکنر تاریخی OHLCV", "CSV را با ستون‌های symbol,date,open,high,low,close,volume وارد کنید. تاریخ yyyy-MM-dd و حداقل ۵۰ کندل روزانه برای هر نماد لازم است. ردیف‌ها بر اساس تاریخ مرتب می‌شوند.")
+                val input = EditText(this).apply {
+                    hint = "symbol,date,open,high,low,close,volume\nفولاد,2026-01-05,2500,2540,2480,2520,1250000"
+                    setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
+                    minLines = 8; gravity = Gravity.TOP
+                }
                 body.addView(input)
                 body.addView(Button(this).apply {
-                    text = "اسکن فهرست نمادها"
+                    text = "اعتبارسنجی و اسکن CSV"
                     setOnClickListener {
                         try {
-                            val lines = input.text.toString().lines().filter { it.isNotBlank() }
-                            require(lines.isNotEmpty()) { "حداقل یک ردیف وارد کنید" }
-                            val results = lines.mapNotNull { line ->
-                                val parts = line.split(";", limit = 2)
-                                require(parts.size == 2) { "قالب هر ردیف باید نماد;قیمت‌ها باشد" }
-                                val closes = parts[1].split(",").map { it.trim().toDouble() }
-                                AnalysisEngine.scanSeries(parts[0], closes)
-                            }.sortedByDescending { it.report.score }
-                            require(results.isNotEmpty()) { "هیچ ردیف معتبری پیدا نشد؛ حداقل ۵۰ قیمت مثبت لازم است" }
-                            card("نتیجه اسکن | ${results.size} نماد", results.joinToString("\n\n") { x ->
-                                "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\nآخرین قیمت: ${x.report.last}\nحدضرر آزمایشی ATR: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\nهدف ۱.۵R: ${x.target1} | هدف ۲R: ${x.target2}\nریسک فاصله حدضرر: %.2f%%".format(java.util.Locale.US, x.riskPercent)
+                            val series = MarketCsvParser.parse(input.text.toString())
+                            val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles) }
+                                .sortedByDescending { it.report.score }
+                            require(results.isNotEmpty()) { "هیچ سری معتبر برای اسکن پیدا نشد" }
+                            card("نتیجه اسکن | ${results.size} نماد", results.joinToString("\\n\\n") { x ->
+                                "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\\n" +
+                                "آخرین قیمت: ${x.report.last}\\nRSI: ${x.report.rsi ?: "—"} | ATR: ${x.report.atr ?: "—"}\\n" +
+                                "حدضرر آزمایشی ATR: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\\n" +
+                                "هدف ۱.۵R: ${x.target1} | هدف ۲R: ${x.target2}\\n" +
+                                "ریسک فاصله حدضرر: %.2f%%".format(java.util.Locale.US, x.riskPercent) +
+                                "\\n" + x.report.notes.joinToString("؛ ")
                             })
-                            card("محدودیت مهم", "این اسکنر فقط داده‌های پایانی واردشده توسط شما را رتبه‌بندی می‌کند. حجم، صف، نقدشوندگی، توقف نماد، تعدیل شرکتی و داده زنده را بررسی نمی‌کند؛ خروجی سیگنال خرید قطعی نیست.")
-                        } catch (e: Exception) { card("خطا در داده", e.message ?: "قالب یا قیمت‌ها را بررسی کنید") }
+                            card("محدودیت مهم", "اسکنر از OHLCV و حجم نسبی استفاده می‌کند، اما صف، ارزش معاملات، توقف نماد، تعدیلات شرکتی و داده زنده را تأیید نمی‌کند. CSV باید از منبع معتبر و با قیمت‌های هم‌مقیاس تهیه شود؛ نتیجه توصیه قطعی خرید نیست.")
+                        } catch (e: Exception) { card("خطا در CSV", e.message ?: "ساختار و داده‌ها را بررسی کنید") }
                     }
                 })
-                card("قالب ورود", "هر نماد در یک خط؛ جداکننده نماد و سری قیمت «;» و جداکننده قیمت‌ها «,» است. برای نمونه واقعی باید فایل تاریخچه معتبر را از کارگزاری/منبع داده استخراج کنید.")
+                card("ساختار CSV", "هر خط: نماد،تاریخ،بازشدن،بیشینه،کمینه،پایانی،حجم. اعداد لاتین و تاریخ میلادی لازم است. برای هر نماد حداقل ۵۰ تاریخ یکتا وارد کنید.")
             }
             "سبد" -> {
                 card("مدیریت سبد آزمایشی", "اطلاعات این بخش روی همین گوشی ذخیره می‌شود؛ قبل از اتکا، کارمزد، مالیات و جزئیات معاملات را تطبیق دهید.")
