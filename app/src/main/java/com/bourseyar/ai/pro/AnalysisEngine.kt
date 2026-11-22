@@ -151,7 +151,7 @@ object AnalysisEngine {
         if (candles.size < 60 || minScore !in 0..100 || !feeBpsRoundTrip.isFinite() || feeBpsRoundTrip < 0) return emptyList()
         if (candles.any { !it.close.isFinite() || !it.open.isFinite() || !it.high.isFinite() || !it.low.isFinite() ||
                 it.close <= 0 || it.open <= 0 || it.low <= 0 || it.high < max(it.open, max(it.close, it.low)) ||
-                it.low > min(it.open, it.close) || it.volume < 0 }) return emptyList()
+                it.low > min(it.open, it.close) || !it.volume.isFinite() || it.volume < 0 }) return emptyList()
         return (2..7).map { horizon ->
             val returns = mutableListOf<Double>()
             for (signalIndex in 49 until candles.size - horizon) {
