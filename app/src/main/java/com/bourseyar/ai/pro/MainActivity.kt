@@ -29,7 +29,7 @@ class MainActivity : Activity() {
         status = label("نسخه توسعه‌ای | داده بازار هنوز اعتبارسنجی نشده", 12f, accent)
         status.gravity = Gravity.CENTER
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        listOf("بازار", "تحلیل", "سبد", "راهنما").forEach { name ->
+        listOf("بازار", "تحلیل", "اسکنر", "سبد", "راهنما").forEach { name ->
             nav.addView(Button(this).apply { text = name; textSize = 11f; setOnClickListener { show(name) } },
                 LinearLayout.LayoutParams(0, -2, 1f))
         }
@@ -83,6 +83,32 @@ class MainActivity : Activity() {
                 })
                 card("هشدار", "امتیاز الگوریتمی احتمال موفقیت را تضمین نمی‌کند و توصیه خرید/فروش نیست. برای سیگنال معتبر، تاریخچه تعدیل‌شده و داده حجم/معاملات لازم است.")
             }
+            "اسکنر" -> {
+                card("اسکنر آزمایشی نوسان‌گیری", "برای هر نماد یک ردیف وارد کنید: نماد;قیمت‌های پایانی تاریخی با کاما جداشده. حداقل ۵۰ قیمت برای هر نماد لازم است. داده باید به‌ترتیب زمانی و از منبع معتبر/تعدیل‌شده باشد.")
+                val input = EditText(this).apply { hint = "نمونه:\nفولاد;2500,2510,2490,...\nفملی;..."; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); minLines = 5; gravity = Gravity.TOP }
+                body.addView(input)
+                body.addView(Button(this).apply {
+                    text = "اسکن فهرست نمادها"
+                    setOnClickListener {
+                        try {
+                            val lines = input.text.toString().lines().filter { it.isNotBlank() }
+                            require(lines.isNotEmpty()) { "حداقل یک ردیف وارد کنید" }
+                            val results = lines.mapNotNull { line ->
+                                val parts = line.split(";", limit = 2)
+                                require(parts.size == 2) { "قالب هر ردیف باید نماد;قیمت‌ها باشد" }
+                                val closes = parts[1].split(",").map { it.trim().toDouble() }
+                                AnalysisEngine.scanSeries(parts[0], closes)
+                            }.sortedByDescending { it.report.score }
+                            require(results.isNotEmpty()) { "هیچ ردیف معتبری پیدا نشد؛ حداقل ۵۰ قیمت مثبت لازم است" }
+                            card("نتیجه اسکن | ${results.size} نماد", results.joinToString("\n\n") { x ->
+                                "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\nآخرین قیمت: ${x.report.last}\nحدضرر آزمایشی ATR: ${x.report.last * (1.0 - x.riskPercent / 100.0)}\nهدف ۱.۵R: ${x.target1} | هدف ۲R: ${x.target2}\nریسک فاصله حدضرر: %.2f%%".format(java.util.Locale.US, x.riskPercent)
+                            })
+                            card("محدودیت مهم", "این اسکنر فقط داده‌های پایانی واردشده توسط شما را رتبه‌بندی می‌کند. حجم، صف، نقدشوندگی، توقف نماد، تعدیل شرکتی و داده زنده را بررسی نمی‌کند؛ خروجی سیگنال خرید قطعی نیست.")
+                        } catch (e: Exception) { card("خطا در داده", e.message ?: "قالب یا قیمت‌ها را بررسی کنید") }
+                    }
+                })
+                card("قالب ورود", "هر نماد در یک خط؛ جداکننده نماد و سری قیمت «;» و جداکننده قیمت‌ها «,» است. برای نمونه واقعی باید فایل تاریخچه معتبر را از کارگزاری/منبع داده استخراج کنید.")
+            }
             "سبد" -> {
                 card("مدیریت سبد آزمایشی", "اطلاعات این بخش روی همین گوشی ذخیره می‌شود؛ قبل از اتکا، کارمزد، مالیات و جزئیات معاملات را تطبیق دهید.")
                 val symbol = EditText(this).apply { hint = "نماد"; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY) }
@@ -104,7 +130,7 @@ class MainActivity : Activity() {
                 card("دارایی‌های ثبت‌شده", prefs.getString("holdings", "")?.ifBlank { "هنوز دارایی ثبت نشده است" } ?: "هنوز دارایی ثبت نشده است")
             }
             else -> {
-                card("قابلیت‌های نسخه", "• موتور محاسباتی RSI، EMA، MACD، ATR و رنکو\n• محاسبه اندازه موقعیت بر اساس ریسک و حدضرر\n• ثبت محلی دارایی‌ها\n• رابط فارسی\n\nدر دست توسعه: دریافت تاریخچه OHLC معتبر، تابلوخوانی، اطلاعات بنیادی، اسکنر چندروزه، همگام‌سازی و خروجی پشتیبان.")
+                card("قابلیت‌های نسخه", "• موتور محاسباتی RSI، EMA، MACD، ATR و رنکو\n• محاسبه اندازه موقعیت بر اساس ریسک و حدضرر\n• اسکنر آزمایشی سری قیمت‌های تاریخی (حداقل ۵۰ دوره)\n• ثبت محلی دارایی‌ها\n• رابط فارسی\n\nدر دست توسعه: دریافت تاریخچه OHLC معتبر، تابلوخوانی، اطلاعات بنیادی، اسکنر چندروزه، همگام‌سازی و خروجی پشتیبان.")
                 card("محدودیت", "این بیلد نسخه کامل نهایی نیست. API عمومی TSETMC هنوز به parser پایدار و آزموده‌شده متصل نشده و هیچ داده بنیادی یا سیگنال زنده‌ای جعل نمی‌شود.")
             }
         }
