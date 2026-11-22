@@ -35,9 +35,11 @@ class MainActivity : Activity() {
                 connection.connectTimeout = 10000; connection.readTimeout = 15000
                 connection.setRequestProperty("User-Agent", "Mozilla/5.0 BourseYarAIPro/0.1")
                 connection.setRequestProperty("Accept", "application/json")
-                val code = (connection as java.net.HttpURLConnection).responseCode
-                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val http = connection as java.net.HttpURLConnection
+                val code = http.responseCode
+                val stream = if (code in 200..299) http.inputStream else http.errorStream
                 val body = stream.bufferedReader().use { it.readText() }
+                http.disconnect()
                 runOnUiThread {
                     status.text = if (code in 200..299) "پاسخ دریافت شد (HTTP $code) — اعتبارسنجی لازم است" else "خطای سرویس (HTTP $code)"
                     output.text = "HTTP: $code\n\nپاسخ خام سرویس (ابتدای متن):\n" + body.take(12000) + "\n\nاین پاسخ هنوز تبدیل/اعتبارسنجی نشده و سیگنال خرید نیست."
