@@ -31,6 +31,22 @@ class AnalysisEngineTest {
     }
 
     @Test
+    fun normalizedFlowScoreRewardsPositivePressureAndConsistency() {
+        val strong = AnalysisEngine.normalizedFlowScore(80.0, 100.0, 5, 5)
+        val weak = AnalysisEngine.normalizedFlowScore(-80.0, 100.0, 0, 5)
+        assertTrue(strong != null && weak != null && strong > weak)
+        assertEquals(100, strong)
+        assertEquals(0, weak)
+    }
+
+    @Test
+    fun normalizedFlowScoreRejectsInvalidOrIncompleteTotals() {
+        assertEquals(null, AnalysisEngine.normalizedFlowScore(10.0, 0.0, 1, 2))
+        assertEquals(null, AnalysisEngine.normalizedFlowScore(110.0, 100.0, 1, 2))
+        assertEquals(null, AnalysisEngine.normalizedFlowScore(Double.NaN, 100.0, 1, 2))
+    }
+
+    @Test
     fun insufficientHistoryIsRejected() {
         assertTrue(AnalysisEngine.backtest(flatCandles(59), minScore = 0).isEmpty())
     }
