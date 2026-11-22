@@ -103,6 +103,20 @@ class MainActivity : Activity() {
                     setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
                 }
                 body.addView(minVolumeInput)
+                val scoreInput = EditText(this).apply {
+                    hint = "حداقل امتیاز سیگنال برای بک‌تست (۰ تا ۱۰۰)"
+                    inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                    setText("70")
+                    setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
+                }
+                body.addView(scoreInput)
+                val feeInput = EditText(this).apply {
+                    hint = "هزینه رفت‌وبرگشت به واحد basis point (۰ = بدون کارمزد)"
+                    inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                    setText("0")
+                    setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
+                }
+                body.addView(feeInput)
                 lateinit var autoScanButton: Button
                 autoScanButton = Button(this).apply {
                     text = "دریافت تاریخچه از TSETMC و اسکن"
@@ -110,20 +124,27 @@ class MainActivity : Activity() {
                         val symbols = symbolsInput.text.toString().split(",", "،")
                             .map { it.trim() }.filter { it.isNotBlank() }.distinct()
                         val minAvgVol = minVolumeInput.text.toString().toDoubleOrNull()
+                        val minScore = scoreInput.text.toString().toIntOrNull()
+                        val feeBps = feeInput.text.toString().toDoubleOrNull()
                         if (symbols.isEmpty()) {
                             card("ورودی لازم است", "یک یا چند نماد را با ویرگول جدا کنید")
                         } else if (minAvgVol == null || !minAvgVol.isFinite() || minAvgVol < 0) {
                             card("فیلتر حجم نامعتبر", "حداقل حجم را به صورت عدد صحیح نامنفی وارد کنید")
+                        } else if (minScore == null || minScore !in 0..100 || feeBps == null || !feeBps.isFinite() || feeBps < 0) {
+                            card("تنظیم بک‌تست نامعتبر", "امتیاز باید بین ۰ تا ۱۰۰ و هزینه رفت‌وبرگشت عدد نامنفی باشد")
                         } else {
                             autoScanButton.isEnabled = false
                             symbolsInput.isEnabled = false
                             minVolumeInput.isEnabled = false
+                            scoreInput.isEnabled = false
+                            feeInput.isEnabled = false
                             autoScanButton.text = "در حال دریافت تاریخچه…"
                             Thread {
                                 try {
                                     val series = symbols.map { TsetmcHistoryProvider.fetchDaily(it) }
                                     val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles, minAvgVol) }
                                         .sortedByDescending { it.report.score }
+                                    val backtests = series.map { it.symbol to AnalysisEngine.backtest(it.candles, minScore, feeBps) }
                                     runOnUiThread {
                                         card("نتیجه اسکن خودکار TSETMC | ${results.size} نماد",
                                             results.joinToString("\n\n") { x ->
@@ -135,9 +156,16 @@ class MainActivity : Activity() {
                                                 "\n" + x.report.notes.joinToString("؛ ")
                                             })
                                         card("فیلتر نقدشوندگی تقریبی", "حداقل میانگین حجم ۲۰ روز قبل: %.0f سهم. این فیلتر فقط تعداد سهم معامله‌شده را می‌سنجد؛ ارزش ریالی معاملات، سهام شناور، عمق سفارش‌ها، توقف نماد و امکان اجرای سفارش را تأیید نمی‌کند.".format(java.util.Locale.US, minAvgVol))
+                                        backtests.forEach { (symbol, rows) ->
+                                            card("بک‌تست $symbol | آستانه امتیاز $minScore", rows.joinToString("\\n") { b ->
+                                                "نگهداری ${b.holdingDays} روز: ${b.trades} معامله | برد %.1f%% | میانگین بازده %.2f%% | PF %.2f | افت سرمایه %.2f%%".format(java.util.Locale.US, b.winRatePercent, b.averageReturnPercent, b.profitFactor, b.maxDrawdownPercent)
+                                            } + "\\nهزینه رفت‌وبرگشت اعمال‌شده: $feeBps bps. معاملات هم‌پوشان‌اند و نتیجه تضمین عملکرد آینده نیست.")
+                                        }
                                         card("منبع و محدودیت", "تاریخچه از API عمومی و غیررسمی TSETMC دریافت شده و قیمت‌های نموداری با گزینه تعدیل‌شده درخواست شده‌اند. این اتصال ممکن است محدود یا تغییر کند؛ نمادهای ناموجود/تاریخچه ناقص با خطا رد می‌شوند. هنوز اسکن کل بازار و راستی‌آزمایی لحظه‌ای وضعیت نماد انجام نمی‌شود.")
                                         symbolsInput.isEnabled = true
                                         minVolumeInput.isEnabled = true
+                                        scoreInput.isEnabled = true
+                                        feeInput.isEnabled = true
                                         autoScanButton.isEnabled = true
                                         autoScanButton.text = "دریافت تاریخچه از TSETMC و اسکن"
                                     }
@@ -146,6 +174,8 @@ class MainActivity : Activity() {
                                         card("خطا در دریافت TSETMC", e.message ?: "خطای شبکه یا ساختار پاسخ")
                                         symbolsInput.isEnabled = true
                                         minVolumeInput.isEnabled = true
+                                        scoreInput.isEnabled = true
+                                        feeInput.isEnabled = true
                                         autoScanButton.isEnabled = true
                                         autoScanButton.text = "تلاش مجدد برای دریافت از TSETMC"
                                     }
@@ -162,6 +192,8 @@ class MainActivity : Activity() {
                             val series = MarketCsvParser.parse(input.text.toString())
                             val results = series.mapNotNull { AnalysisEngine.scanCandles(it.symbol, it.candles) }
                                 .sortedByDescending { it.report.score }
+                            val minScore = scoreInput.text.toString().toIntOrNull()?.takeIf { it in 0..100 } ?: 70
+                            val feeBps = feeInput.text.toString().toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 } ?: 0.0
                             require(results.isNotEmpty()) { "هیچ سری معتبر برای اسکن پیدا نشد" }
                             card("نتیجه اسکن | ${results.size} نماد", results.joinToString("\n\n") { x ->
                                 "${x.symbol} | امتیاز ${x.report.score}/100 | روند ${x.report.trend}\n" +
@@ -171,7 +203,13 @@ class MainActivity : Activity() {
                                 "ریسک فاصله حدضرر: %.2f%%".format(java.util.Locale.US, x.riskPercent) +
                                 "\n" + x.report.notes.joinToString("؛ ")
                             })
-                            card("محدودیت مهم", "اسکنر از OHLCV و حجم نسبی استفاده می‌کند، اما صف، ارزش معاملات، توقف نماد، تعدیلات شرکتی و داده زنده را تأیید نمی‌کند. CSV باید از منبع معتبر و با قیمت‌های هم‌مقیاس تهیه شود؛ نتیجه توصیه قطعی خرید نیست.")
+                            series.forEach { item ->
+                                val bt = AnalysisEngine.backtest(item.candles, minScore, feeBps)
+                                card("بک‌تست ${item.symbol}", bt.joinToString("\\n") { b ->
+                                    "${b.holdingDays} روز | ${b.trades} معامله | برد %.1f%% | میانگین %.2f%% | PF %.2f | افت سرمایه %.2f%%".format(java.util.Locale.US, b.winRatePercent, b.averageReturnPercent, b.profitFactor, b.maxDrawdownPercent)
+                                } + "\\nکارمزد رفت‌وبرگشت: $feeBps bps. ورود در بازشدن روز بعد، خروج با حدضرر/هدف یا پایان افق؛ معاملات هم‌پوشان‌اند.")
+                            }
+                            card("محدودیت مهم", "بک‌تست فقط یک شبیه‌سازی ساده تاریخی است؛ معاملات هم‌پوشان‌اند، صف و لغزش قیمت و محدودیت دامنه نوسان لحاظ نشده و کارمزد فقط به‌صورت ورودی کاربر اعمال می‌شود. CSV باید از منبع معتبر و با قیمت‌های هم‌مقیاس تهیه شود؛ نتیجه توصیه قطعی خرید نیست.")
                         } catch (e: Exception) { card("خطا در CSV", e.message ?: "ساختار و داده‌ها را بررسی کنید") }
                     }
                 })
