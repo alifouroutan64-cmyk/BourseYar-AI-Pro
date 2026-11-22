@@ -114,23 +114,29 @@ class MainActivity : Activity() {
                                 }
                                 runOnUiThread {
                                     symbolsInput.setText(leaders.joinToString("، ") { it.symbol })
-                                    card("نمادهای پرتراکنش دیده‌بان", leaders.take(10).joinToString("\n") { item ->
+                                    val flowRanked = leaders.take(5).mapNotNull { item ->
+                                        val history = historicalFlows[item.instrumentCode]?.getOrNull() ?: return@mapNotNull null
+                                        val valid = history.filter { it.netIndividualValue != null && it.grossIndividualValue != null && it.grossIndividualValue > 0 }
+                                        if (valid.isEmpty()) return@mapNotNull null
+                                        val gross = valid.sumOf { it.grossIndividualValue!! }
+                                        if (gross <= 0) return@mapNotNull null
+                                        val net = valid.sumOf { it.netIndividualValue!! }
+                                        val pressurePct = 100.0 * net / gross
+                                        val positiveRatio = valid.count { it.netIndividualValue!! > 0 }.toDouble() / valid.size
+                                        val pressureScore = ((pressurePct.coerceIn(-100.0, 100.0) + 100.0) / 2.0)
+                                        val flowScore = (0.7 * pressureScore + 0.3 * positiveRatio * 100.0).toInt().coerceIn(0, 100)
+                                        Triple(item, flowScore, Triple(pressurePct, valid.count { it.netIndividualValue!! > 0 }, valid.size))
+                                    }.sortedByDescending { it.second }
+                                    val flowText = flowRanked.joinToString("\n") { (item, score, stats) ->
                                         val flow = flows[item.instrumentCode]
-                                        val net = flow?.netIndividualVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود"
+                                        val netVolume = flow?.netIndividualVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود"
                                         val perBuyer = flow?.individualBuyPerBuyer?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"
-                                        val history = historicalFlows[item.instrumentCode]?.getOrNull()
-                                        val historyText = when {
-                                            history == null -> "تاریخچه چندروزه: دریافت نشد"
-                                            history.isEmpty() -> "تاریخچه چندروزه: داده ندارد"
-                                            else -> {
-                                                val known = history.mapNotNull { it.netIndividualVolume }
-                                                val sum = if (known.isNotEmpty()) "%.0f".format(java.util.Locale.US, known.sum()) else "ناموجود"
-                                                val positiveDays = known.count { it > 0 }
-                                                "خالص حقیقی ${history.size} جلسه اخیر: $sum سهم در $positiveDays جلسه مثبت"
-                                            }
-                                        }
-                                        "${item.symbol} | حجم ${"%.0f".format(java.util.Locale.US, item.volume)} | ارزش گزارش‌شده ${"%.0f".format(java.util.Locale.US, item.tradedValue)} | خالص حقیقی: $net | میانگین خرید حقیقی: $perBuyer | $historyText"
-                                    } + "\n۲۰ نماد برتر بر اساس ارزش گزارش‌شده انتخاب شدند. خالص حقیقی = خرید حقیقی منهای فروش حقیقی. تاریخچه چندروزه فقط برای ۵ نماد اول دریافت می‌شود؛ مجموع فقط روزهای دارای داده معتبر را جمع می‌کند و تعداد جلسات مثبت جداگانه گزارش می‌شود. برای دریافت تاریخچه و اسکن، دکمه دریافت TSETMC را بزنید.")
+                                        "امتیاز جریان: $score/100 | ${item.symbol} | فشار خالص ارزش حقیقی: ${"%.1f".format(java.util.Locale.US, stats.first)}٪ | روز مثبت: ${stats.second}/${stats.third} | خالص حجم آخرین جلسه: $netVolume | سرانه خرید: $perBuyer | ارزش معاملات: ${"%.0f".format(java.util.Locale.US, item.tradedValue)}"
+                                    }
+                                    card("رتبه‌بندی جریان پول حقیقی در ۵ نماد پرتراکنش", flowText.ifBlank { "داده معتبر ارزش حقیقی/حقوقی برای محاسبه فشار پول دریافت نشد؛ رتبه‌بندی انجام نشد." } + "\nامتیاز جریان = ۷۰٪ فشار خالص ارزش خرید حقیقی به کل ارزش خریدوفروش حقیقی + ۳۰٪ نسبت جلسات مثبت. فقط روزهای دارای هر دو مقدار معتبر محاسبه می‌شوند. این امتیاز غربالگری است، نه سیگنال خرید.")
+                                    card("دیده‌بان ارزش معاملات", leaders.take(10).joinToString("\n") { item ->
+                                        "${item.symbol} | حجم ${"%.0f".format(java.util.Locale.US, item.volume)} | ارزش گزارش‌شده ${"%.0f".format(java.util.Locale.US, item.tradedValue)}"
+                                    } + "\n۲۰ نماد اول بر اساس ارزش گزارش‌شده در فهرست ورودی اسکن قرار گرفتند.")
                                     leadersButton.isEnabled = true
                                     leadersButton.text = "به‌روزرسانی ۲۰ نماد برتر بازار"
                                 }
