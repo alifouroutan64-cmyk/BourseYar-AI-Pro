@@ -50,4 +50,23 @@ class AnalysisEngineTest {
     fun insufficientHistoryIsRejected() {
         assertTrue(AnalysisEngine.backtest(flatCandles(59), minScore = 0).isEmpty())
     }
+
+    @Test
+    fun opportunityScoreCombinesTechnicalFlowVolumeAndRewardRisk() {
+        val full = OpportunityScoring.score(80, 100, 2.0, 2.5)
+        assertEquals(90, full)
+    }
+
+    @Test
+    fun opportunityScoreRenormalizesWhenFlowIsUnavailable() {
+        val withMissingFlow = OpportunityScoring.score(80, null, 2.0, 2.5)
+        assertEquals(88, withMissingFlow)
+    }
+
+    @Test
+    fun opportunityScoreRejectsInvalidInputs() {
+        assertEquals(null, OpportunityScoring.score(101, 50, 1.0, 2.0))
+        assertEquals(null, OpportunityScoring.score(70, 50, Double.NaN, 2.0))
+        assertEquals(null, OpportunityScoring.score(70, 50, 1.0, -1.0))
+    }
 }
