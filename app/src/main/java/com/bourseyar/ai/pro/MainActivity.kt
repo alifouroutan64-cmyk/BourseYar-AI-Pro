@@ -106,14 +106,31 @@ class MainActivity : Activity() {
                             try {
                                 val leaders = TsetmcHistoryProvider.fetchMarketLeaders(20)
                                 val flows = runCatching { TsetmcHistoryProvider.fetchClientFlowAll() }.getOrDefault(emptyMap())
+                                // Limit historical requests to five candidates to avoid hammering the public endpoint.
+                                val historicalFlows = leaders.take(5).associate { item ->
+                                    item.instrumentCode to runCatching {
+                                        TsetmcHistoryProvider.fetchClientFlowHistory(item.instrumentCode).takeLast(5)
+                                    }
+                                }
                                 runOnUiThread {
                                     symbolsInput.setText(leaders.joinToString("، ") { it.symbol })
                                     card("نمادهای پرتراکنش دیده‌بان", leaders.take(10).joinToString("\n") { item ->
                                         val flow = flows[item.instrumentCode]
                                         val net = flow?.netIndividualVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود"
                                         val perBuyer = flow?.individualBuyPerBuyer?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"
-                                        "${item.symbol} | حجم ${"%.0f".format(java.util.Locale.US, item.volume)} | ارزش گزارش‌شده ${"%.0f".format(java.util.Locale.US, item.tradedValue)} | خالص حقیقی: $net | میانگین خرید حقیقی: $perBuyer"
-                                    } + "\n۲۰ نماد برتر بر اساس ارزش گزارش‌شده انتخاب شدند. خالص حقیقی = خرید حقیقی منهای فروش حقیقی. این آمار، جریان آخرین جلسه موجود است و جایگزین بررسی چندروزه نیست. برای دریافت تاریخچه و اسکن، دکمه دریافت TSETMC را بزنید.")
+                                        val history = historicalFlows[item.instrumentCode]?.getOrNull()
+                                        val historyText = when {
+                                            history == null -> "تاریخچه چندروزه: دریافت نشد"
+                                            history.isEmpty() -> "تاریخچه چندروزه: داده ندارد"
+                                            else -> {
+                                                val known = history.mapNotNull { it.netIndividualVolume }
+                                                val sum = if (known.isNotEmpty()) "%.0f".format(java.util.Locale.US, known.sum()) else "ناموجود"
+                                                val positiveDays = known.count { it > 0 }
+                                                "خالص حقیقی ${history.size} جلسه اخیر: $sum سهم در $positiveDays جلسه مثبت"
+                                            }
+                                        }
+                                        "${item.symbol} | حجم ${"%.0f".format(java.util.Locale.US, item.volume)} | ارزش گزارش‌شده ${"%.0f".format(java.util.Locale.US, item.tradedValue)} | خالص حقیقی: $net | میانگین خرید حقیقی: $perBuyer | $historyText"
+                                    } + "\n۲۰ نماد برتر بر اساس ارزش گزارش‌شده انتخاب شدند. خالص حقیقی = خرید حقیقی منهای فروش حقیقی. تاریخچه چندروزه فقط برای ۵ نماد اول دریافت می‌شود؛ مجموع فقط روزهای دارای داده معتبر را جمع می‌کند و تعداد جلسات مثبت جداگانه گزارش می‌شود. برای دریافت تاریخچه و اسکن، دکمه دریافت TSETMC را بزنید.")
                                     leadersButton.isEnabled = true
                                     leadersButton.text = "به‌روزرسانی ۲۰ نماد برتر بازار"
                                 }
