@@ -72,7 +72,7 @@ object TsetmcHistoryProvider {
             if (listOf(high, low, open, last, volume, close).any { !it.isFinite() } ||
                 low <= 0 || open <= 0 || close <= 0 || high < maxOf(open, low, close) ||
                 low > minOf(open, close) || volume < 0) return@mapNotNull null
-            dateText to Candle(close = close, high = high, low = low, volume = volume)
+            dateText to Candle(close = close, high = high, low = low, volume = volume, open = open)
         }.sortedBy { it.first }
         require(candles.size >= 50) {
             "TSETMC برای $symbol فقط ${candles.size} کندل معتبر داد؛ حداقل ۵۰ لازم است"
