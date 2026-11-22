@@ -23,6 +23,7 @@ data class ClientFlowDay(
     val date: String,
     val netIndividualVolume: Double?,
     val netIndividualValue: Double?,
+    val grossIndividualValue: Double?,
     val netLegalVolume: Double?,
     val individualBuyPerBuyer: Double?,
     val individualSellPerSeller: Double?
@@ -141,6 +142,7 @@ object TsetmcHistoryProvider {
                 date,
                 if (buyI != null && sellI != null) buyI - sellI else null,
                 if (buyIValue != null && sellIValue != null) buyIValue - sellIValue else null,
+                if (buyIValue != null && sellIValue != null) buyIValue + sellIValue else null,
                 if (buyN != null && sellN != null) buyN - sellN else null,
                 if (buyI != null && buyCount != null && buyCount > 0) buyI / buyCount else null,
                 if (sellI != null && sellCount != null && sellCount > 0) sellI / sellCount else null
