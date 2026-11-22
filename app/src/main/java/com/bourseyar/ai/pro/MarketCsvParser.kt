@@ -27,7 +27,7 @@ object MarketCsvParser {
             .filterNot { it.startsWith("#") }.toList()
         require(rows.isNotEmpty()) { "فایل CSV خالی است" }
         val start = if (rows.first().lowercase().startsWith("symbol,")) 1 else 0
-        val grouped = linkedMapOf<String, MutableList<Pair<String, Candle>>>()
+        val grouped = linkedMapOf<String, MutableList<Triple<String, Candle, Double>>>()
         rows.drop(start).forEachIndexed { index, row ->
             val p = row.split(",").map { it.trim() }
             require(p.size == 7) { "ردیف ${index + start + 1}: باید دقیقاً ۷ ستون داشته باشد" }
@@ -43,12 +43,12 @@ object MarketCsvParser {
             require(listOf(o,h,l,c,v).all { it.isFinite() } && l > 0 && o > 0 && c > 0 && h >= maxOf(o,l,c) && l <= minOf(o,c) && v >= 0) {
                 "مقادیر OHLCV نامعتبر در ردیف ${index + start + 1}"
             }
-            grouped.getOrPut(symbol) { mutableListOf() }.add(date to Candle(c,h,l,v))
+            grouped.getOrPut(symbol) { mutableListOf() }.add(Triple(date, Candle(c,h,l,v), o))
         }
         require(grouped.isNotEmpty()) { "هیچ ردیف داده‌ای وجود ندارد" }
         return grouped.map { (symbol, entries) ->
             require(entries.map { it.first }.distinct().size == entries.size) { "تاریخ تکراری برای نماد $symbol" }
-            val candles = entries.sortedBy { it.first }.map { it.second }
+            val candles = entries.sortedBy { it.first }.map { it.second.copy(open = it.third) }
             require(candles.size >= 50) { "نماد $symbol فقط ${candles.size} کندل دارد؛ حداقل ۵۰ کندل لازم است" }
             HistoricalSeries(symbol, candles)
         }
