@@ -5,9 +5,10 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 
-data class Candle(val close: Double, val high: Double = close, val low: Double = close, val volume: Double = 0.0)
+data class Candle(val close: Double, val high: Double = close, val low: Double = close, val volume: Double = 0.0, val open: Double = close)
 data class RenkoBrick(val close: Double, val direction: Int)
 data class ScanCandidate(val symbol: String, val report: TechnicalReport, val riskPercent: Double, val target1: Double, val target2: Double)
+data class BacktestSummary(val holdingDays: Int, val trades: Int, val winRatePercent: Double, val averageReturnPercent: Double, val profitFactor: Double, val maxDrawdownPercent: Double)
 
 data class TechnicalReport(
     val last: Double, val rsi: Double?, val ema20: Double?, val ema50: Double?,
@@ -114,7 +115,7 @@ object AnalysisEngine {
     fun scanCandles(symbol: String, candles: List<Candle>, minAverageVolume: Double = 0.0): ScanCandidate? {
         if (symbol.isBlank() || candles.size < 50 || !minAverageVolume.isFinite() || minAverageVolume < 0) return null
         if (candles.any { !it.close.isFinite() || !it.high.isFinite() || !it.low.isFinite() ||
-                !it.volume.isFinite() || it.close <= 0 || it.low <= 0 || it.high < max(it.close, it.low) || it.volume < 0 }) return null
+                !it.volume.isFinite() || !it.open.isFinite() || it.close <= 0 || it.open <= 0 || it.low <= 0 || it.high < max(it.open, max(it.close, it.low)) || it.low > min(it.open, it.close) || it.volume < 0 }) return null
         val report = analyze(candles) ?: return null
         val last = candles.last().close
         val prior = candles.dropLast(1).takeLast(20)
@@ -139,6 +140,57 @@ object AnalysisEngine {
         val ranked = report.copy(score = score, notes = notes)
         return ScanCandidate(symbol.trim().uppercase(), ranked, risk / last * 100.0,
             target(last, risk, 1.5), target(last, risk, 2.0))
+    }
+
+    /**
+     * Walk-forward simulation: signal uses candles through day t; entry is next day's open.
+     * Stop/target are fixed from signal-day ATR. If both touch on one candle, stop is assumed first.
+     * Positions may overlap. Fee is round-trip basis points.
+     */
+    fun backtest(candles: List<Candle>, minScore: Int = 70, feeBpsRoundTrip: Double = 0.0): List<BacktestSummary> {
+        if (candles.size < 60 || minScore !in 0..100 || !feeBpsRoundTrip.isFinite() || feeBpsRoundTrip < 0) return emptyList()
+        if (candles.any { !it.close.isFinite() || !it.open.isFinite() || !it.high.isFinite() || !it.low.isFinite() ||
+                it.close <= 0 || it.open <= 0 || it.low <= 0 || it.high < max(it.open, max(it.close, it.low)) ||
+                it.low > min(it.open, it.close) || it.volume < 0 }) return emptyList()
+        return (2..7).map { horizon ->
+            val returns = mutableListOf<Double>()
+            for (signalIndex in 49 until candles.size - horizon) {
+                val report = analyze(candles.subList(0, signalIndex + 1)) ?: continue
+                if (report.score < minScore) continue
+                val entryIndex = signalIndex + 1
+                val entry = candles[entryIndex].open
+                val atrRisk = (report.atr ?: report.last * 0.04).coerceAtLeast(report.last * 0.01)
+                val stop = report.last - atrRisk
+                val targetPrice = report.last + atrRisk * 1.5
+                if (entry <= 0 || stop <= 0) continue
+                var exit = candles[minOf(entryIndex + horizon - 1, candles.lastIndex)].close
+                for (day in entryIndex..minOf(entryIndex + horizon - 1, candles.lastIndex)) {
+                    val bar = candles[day]
+                    if (bar.open <= stop) { exit = bar.open; break }
+                    if (bar.open >= targetPrice) { exit = targetPrice; break }
+                    val hitStop = bar.low <= stop
+                    val hitTarget = bar.high >= targetPrice
+                    if (hitStop) { exit = stop; break }
+                    if (hitTarget) { exit = targetPrice; break }
+                }
+                returns += (exit / entry - 1.0) * 100.0 - feeBpsRoundTrip / 100.0
+            }
+            if (returns.isEmpty()) BacktestSummary(horizon, 0, 0.0, 0.0, 0.0, 0.0)
+            else {
+                val gains = returns.filter { it > 0 }.sum()
+                val losses = -returns.filter { it < 0 }.sum()
+                var equity = 1.0
+                var peak = 1.0
+                var maxDd = 0.0
+                returns.forEach { r ->
+                    equity *= (1.0 + r / 100.0)
+                    peak = max(peak, equity)
+                    maxDd = max(maxDd, (peak - equity) / peak * 100.0)
+                }
+                BacktestSummary(horizon, returns.size, returns.count { it > 0 } * 100.0 / returns.size,
+                    returns.average(), if (losses > 0) gains / losses else if (gains > 0) Double.POSITIVE_INFINITY else 0.0, maxDd)
+            }
+        }
     }
 
     fun renko(closes: List<Double>, boxSize: Double): List<RenkoBrick> {
