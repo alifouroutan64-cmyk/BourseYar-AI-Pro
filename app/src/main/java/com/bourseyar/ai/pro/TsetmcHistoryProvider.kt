@@ -13,8 +13,8 @@ import java.util.TimeZone
 /** Public, unofficial TSETMC endpoints. Validate every response; provider availability is not guaranteed. */
 data class MarketLeader(val symbol: String, val instrumentCode: String, val volume: Double, val tradedValue: Double)
 data class ClientFlow(
-    val netIndividualVolume: Double,
-    val netLegalVolume: Double,
+    val netIndividualVolume: Double?,
+    val netLegalVolume: Double?,
     val individualBuyPerBuyer: Double?,
     val individualSellPerSeller: Double?
 )
@@ -51,6 +51,20 @@ object TsetmcHistoryProvider {
         return parser.parse(value, pos) != null && pos.index == value.length
     }
 
+    private fun JSONObject.numberOrNull(vararg keys: String): Double? {
+        for (key in keys) {
+            if (!has(key) || isNull(key)) continue
+            val value = opt(key)
+            val parsed = when (value) {
+                is Number -> value.toDouble()
+                is String -> value.replace(",", "").toDoubleOrNull()
+                else -> null
+            }
+            if (parsed != null && parsed.isFinite() && parsed >= 0) return parsed
+        }
+        return null
+    }
+
     private fun JSONObject.number(vararg keys: String): Double {
         for (key in keys) {
             val value = opt(key)
@@ -74,17 +88,19 @@ object TsetmcHistoryProvider {
             val row = rows.optJSONObject(index) ?: continue
             val code = row.optString("insCode")
             if (code.isBlank()) continue
-            val buyI = row.number("buy_I_Volume", "buyIVolume")
-            val sellI = row.number("sell_I_Volume", "sellIVolume")
-            val buyN = row.number("buy_N_Volume", "buyNVolume")
-            val sellN = row.number("sell_N_Volume", "sellNVolume")
-            val buyCountI = row.number("buy_CountI", "buy_I_Count", "buyCountI")
-            val sellCountI = row.number("sell_CountI", "sell_I_Count", "sellCountI")
+            val buyI = row.numberOrNull("buy_I_Volume", "buyIVolume")
+            val sellI = row.numberOrNull("sell_I_Volume", "sellIVolume")
+            val buyN = row.numberOrNull("buy_N_Volume", "buyNVolume")
+            val sellN = row.numberOrNull("sell_N_Volume", "sellNVolume")
+            val buyCountI = row.numberOrNull("buy_CountI", "buy_I_Count", "buyCountI")
+            val sellCountI = row.numberOrNull("sell_CountI", "sell_I_Count", "sellCountI")
+            // Missing fields remain unknown; never silently convert them to zero.
+            if (buyI == null || sellI == null || buyN == null || sellN == null) continue
             result[code] = ClientFlow(
                 buyI - sellI,
                 buyN - sellN,
-                if (buyCountI > 0) buyI / buyCountI else null,
-                if (sellCountI > 0) sellI / sellCountI else null
+                if (buyCountI != null && buyCountI > 0) buyI / buyCountI else null,
+                if (sellCountI != null && sellCountI > 0) sellI / sellCountI else null
             )
         }
         require(result.isNotEmpty()) { "داده جریان حقیقی/حقوقی خالی است یا سرویس پاسخ معتبر نداد" }
