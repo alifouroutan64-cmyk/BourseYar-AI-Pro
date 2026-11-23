@@ -116,6 +116,8 @@ class MainActivity : Activity() {
                 marketResultsText = label("در انتظار دریافت اولین snapshot بازار…", 13f, Color.WHITE)
                 body.addView(marketResultsText)
                 card("محدودیت منبع", "منبع رایگان و بدون کلید API است، اما غیررسمی است؛ ممکن است از دسترس خارج شود، محدودیت نرخ داشته باشد یا داده با تأخیر برسد. در زمان خطا، داده قبلی به‌عنوان قیمت زنده نمایش داده نمی‌شود.")
+                startMarketPolling()
+                (controls.getChildAt(1) as Button).text = if (marketPolling) "توقف خودکار" else "شروع خودکار"
             }
             "تحلیل" -> {
                 card("تحلیل تکنیکال", "محاسبه‌گر RSI(14)، EMA20/50، MACD، ATR و حمایت/مقاومت برای سری کندل‌های معتبر در موتور تحلیل اضافه شده است. تا زمان اتصال منبع تاریخچه OHLC معتبر، تحلیل نماد واقعی ارائه نمی‌شود.")
