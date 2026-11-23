@@ -90,6 +90,21 @@ object TsetmcHistoryProvider {
         return null
     }
 
+
+    private fun JSONObject.positiveNumber(vararg keys: String): Double? {
+        for (key in keys) {
+            if (!has(key) || isNull(key)) continue
+            val value = opt(key)
+            val parsed = when (value) {
+                is Number -> value.toDouble()
+                is String -> value.replace(",", "").toDoubleOrNull()
+                else -> null
+            }
+            if (parsed != null && parsed.isFinite() && parsed > 0.0) return parsed
+        }
+        return null
+    }
+
     private fun JSONObject.number(vararg keys: String): Double {
         for (key in keys) {
             val value = opt(key)
@@ -180,9 +195,10 @@ object TsetmcHistoryProvider {
             val code = row.optString("insCode")
             val symbol = sequenceOf("lva", "lVal18AFC", "symbol").map { row.optString(it) }
                 .firstOrNull { it.isNotBlank() && it != "null" }.orEmpty()
-            val volume = row.number("qTotTran5J", "tvol", "volume")
-            val value = row.number("qTotCap", "tval", "tradedValue")
-            if (code.isBlank() || symbol.isBlank() || volume <= 0 || value <= 0) null
+            // Compact MarketWatch aliases may be populated while descriptive fields are zero.
+            val volume = row.positiveNumber("qTotTran5J", "tvol", "volume", "qtj")
+            val value = row.positiveNumber("qTotCap", "tval", "tradedValue", "qtc")
+            if (code.isBlank() || symbol.isBlank() || volume == null || value == null) null
             else MarketLeader(symbol, code, volume, value)
         }
         require(leaders.isNotEmpty()) {
