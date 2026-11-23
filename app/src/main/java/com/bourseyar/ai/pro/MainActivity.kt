@@ -593,6 +593,14 @@ class MainActivity : Activity() {
         return null
     }
 
+    private fun firstPositiveNumber(row: JSONObject, vararg keys: String): Double? {
+        for (key in keys) {
+            val number = firstNumber(row, key)
+            if (number != null && number > 0.0) return number
+        }
+        return null
+    }
+
     /**
      * Diagnostic-only request: reports DNS, HTTP status, content type and JSON shape.
      * It never treats a successful TCP/HTTP response as proof of valid live market data.
@@ -676,10 +684,13 @@ class MainActivity : Activity() {
                 val parsed = (0 until rows.length()).mapNotNull { index ->
                     val row = rows.optJSONObject(index) ?: return@mapNotNull null
                     val symbol = firstText(row, "lVal18AFC", "lva", "symbol", "instrumentName") ?: return@mapNotNull null
-                    val last = firstNumber(row, "pDrCotVal", "lastPrice", "last") ?: return@mapNotNull null
-                    val close = firstNumber(row, "pClosing", "closingPrice", "close")
-                    if (last <= 0.0) return@mapNotNull null
-                    val change = close?.takeIf { it > 0.0 }?.let { 100.0 * (last - it) / it }
+                    // TSETMC market-watch has both descriptive and compact field names.
+                    // Zero in a descriptive field must not mask a populated compact alias.
+                    val last = firstPositiveNumber(row, "pDrCotVal", "pl", "lastPrice", "last")
+                        ?: return@mapNotNull null
+                    val close = firstPositiveNumber(row, "pClosing", "pc", "closingPrice", "close")
+                    val previousClose = firstPositiveNumber(row, "priceYesterday", "py")
+                    val change = previousClose?.let { 100.0 * (last - it) / it }
                     val volume = firstNumber(row, "qTotTran5J", "tvol", "volume")
                     val value = firstNumber(row, "qTotCap", "tval", "tradedValue")
                     listOf<Any?>(symbol, last, close, change, volume, value)
