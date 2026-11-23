@@ -200,7 +200,7 @@ class MainActivity : Activity() {
                     setText("فولاد")
                     setTextColor(Color.WHITE)
                     setHintTextColor(Color.LTGRAY)
-                    singleLine = true
+                    isSingleLine = true
                 }
                 body.addView(dashboardSymbolInput)
                 val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
