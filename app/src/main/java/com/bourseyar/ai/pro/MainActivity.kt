@@ -44,8 +44,9 @@ class MainActivity : Activity() {
         status.gravity = Gravity.CENTER
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         listOf("بازار", "تابلو", "تحلیل", "اسکنر", "سبد", "راهنما").forEach { name ->
-            nav.addView(Button(this).apply { text = name; textSize = 11f; setOnClickListener { show(name) } },
-                LinearLayout.LayoutParams(0, -2, 1f))
+            nav.addView(Button(this).apply { text = name; textSize = 11f; setOnClickListener {
+                if (name == "سبد") startActivity(android.content.Intent(this@MainActivity, PortfolioActivity::class.java)) else show(name)
+            } }, LinearLayout.LayoutParams(0, -2, 1f))
         }
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply { addView(body) }
