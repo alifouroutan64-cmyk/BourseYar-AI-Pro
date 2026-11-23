@@ -44,6 +44,7 @@ class PortfolioActivity:Activity() {
         root.addView(text("سرمایه اولیه: "+fmt(cost)+" ریال",14f,0xFFBFCBDA.toInt()))
         root.addView(text("سود/زیان: "+fmt(pnl)+" ریال | "+percent(if(cost>0)pnl.toDouble()*100/cost else 0.0),16f,if(pnl>=0)green else red,true))
         root.addView(Button(this).apply{ text="افزودن سهم";setOnClickListener{form(null)} })
+        root.addView(Button(this).apply{ text="به‌روزرسانی قیمت‌ها از TSETMC";setOnClickListener{refreshPrices()} })
         root.addView(text("تعداد سهام ثبت‌شده: "+data.size,13f,0xFFBFCBDA.toInt()))
         val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
         val scroll=ScrollView(this).apply{addView(list)}
@@ -51,6 +52,29 @@ class PortfolioActivity:Activity() {
         data.forEach { h -> list.addView(card(h)) }
         setContentView(root)
     }
+    private fun refreshPrices() {
+        val holdings = load()
+        if (holdings.isEmpty()) {
+            Toast.makeText(this, "ابتدا سهمی به سبد اضافه کنید.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        Toast.makeText(this, "در حال دریافت قیمت نمادها از TSETMC…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val updated = holdings.map { holding ->
+                try {
+                    val snapshot = TsetmcHistoryProvider.fetchLiveSnapshot(holding.symbol)
+                    val livePrice = snapshot.quote.last ?: snapshot.quote.close
+                    if (livePrice != null && livePrice > 0 && livePrice <= Long.MAX_VALUE.toDouble()) holding.copy(currentPrice = livePrice.toLong()) else holding
+                } catch (_: Exception) { holding }
+            }
+            runOnUiThread {
+                save(updated)
+                val changed = updated.zip(holdings).count { (new, old) -> new.currentPrice != old.currentPrice }
+                Toast.makeText(this, "قیمت $changed از ${holdings.size} نماد به‌روزرسانی شد. نمادهای ناموفق با قیمت قبلی باقی ماندند.", Toast.LENGTH_LONG).show()
+            }
+        }.start()
+    }
+
     private fun card(h:PortfolioHolding):LinearLayout {
         val d=decision(h)
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(12,12,12,12);setBackgroundColor(panel)}
