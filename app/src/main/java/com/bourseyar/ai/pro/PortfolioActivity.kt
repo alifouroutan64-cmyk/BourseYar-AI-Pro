@@ -44,6 +44,7 @@ class PortfolioActivity:Activity() {
         root.addView(text("سرمایه اولیه: "+fmt(cost)+" ریال",14f,0xFFBFCBDA.toInt()))
         root.addView(text("سود/زیان: "+fmt(pnl)+" ریال | "+percent(if(cost>0)pnl.toDouble()*100/cost else 0.0),16f,if(pnl>=0)green else red,true))
         root.addView(Button(this).apply{ text="افزودن سهم";setOnClickListener{form(null)} })
+        root.addView(Button(this).apply{ text="پیشنهادهای اسکن جامع بورس‌یار";setOnClickListener{showScannerRecommendations()} })
         root.addView(Button(this).apply{ text="به‌روزرسانی قیمت‌ها از TSETMC";setOnClickListener{refreshPrices()} })
         root.addView(text("تعداد سهام ثبت‌شده: "+data.size,13f,0xFFBFCBDA.toInt()))
         val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
@@ -73,6 +74,64 @@ class PortfolioActivity:Activity() {
                 Toast.makeText(this, "قیمت $changed از ${holdings.size} نماد به‌روزرسانی شد. نمادهای ناموفق با قیمت قبلی باقی ماندند.", Toast.LENGTH_LONG).show()
             }
         }.start()
+    }
+
+
+    private fun showScannerRecommendations() {
+        val scanPrefs = getSharedPreferences("bourseyar", MODE_PRIVATE)
+        val raw = scanPrefs.getString("comprehensive_scan", null)
+        if (raw.isNullOrBlank()) {
+            AlertDialog.Builder(this@PortfolioActivity).setMessage("هنوز اسکن جامع اجرا نشده است. از صفحه اسکنر، تحلیل جامع بازار را اجرا کنید.")
+                .setPositiveButton("متوجه شدم", null).show()
+            return
+        }
+        try {
+            val rows = JSONArray(raw)
+            val eligible = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+                .filter { it.isNull("excludedReason") || it.optString("excludedReason").isBlank() }
+                .sortedByDescending { it.optInt("score", 0) }
+            val best = eligible.firstOrNull()
+            val report = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+                .sortedByDescending { it.optInt("score", 0) }
+                .joinToString("\n\n") { row ->
+                    val symbol = row.optString("symbol")
+                    val score = row.optInt("score")
+                    val exclusion = if (row.isNull("excludedReason")) "" else "\n⛔ حذف از خرید: " + row.optString("excludedReason")
+                    "$symbol | امتیاز $score/100 | " + row.optString("recommendation") +
+                        "\nقیمت: " + row.optDouble("price").toLong() +
+                        " | حد ضرر: " + row.optDouble("stop").toLong() +
+                        " | هدف ۱: " + row.optDouble("target1").toLong() +
+                        " | هدف ۲: " + row.optDouble("target2").toLong() + exclusion
+                }
+            val builder = AlertDialog.Builder(this@PortfolioActivity)
+                .setTitle("نتایج اسکن جامع")
+                .setMessage(report.ifBlank { "نتیجه‌ای ذخیره نشده است." })
+                .setPositiveButton("بستن", null)
+            if (best != null) {
+                builder.setNeutralButton("افزودن بهترین گزینه به سبد") { _, _ ->
+                    val qtyInput = EditText(this@PortfolioActivity).apply {
+                        hint = "تعداد سهم برای ثبت"
+                        inputType = InputType.TYPE_CLASS_NUMBER
+                    }
+                    AlertDialog.Builder(this@PortfolioActivity).setTitle("ثبت پیشنهادی ${best.optString("symbol")}")
+                        .setMessage("قیمت ثبت اولیه از اسکن: ${best.optDouble("price").toLong()} ریال\nحد ضرر: ${best.optDouble("stop").toLong()} ریال\nاین ثبت فقط در سبد محلی انجام می‌شود؛ هیچ سفارش خریدی ارسال نمی‌شود.")
+                        .setView(qtyInput).setNegativeButton("لغو", null)
+                        .setPositiveButton("ثبت در سبد") { _, _ ->
+                            val quantity = qtyInput.text.toString().toLongOrNull() ?: 0L
+                            val price = best.optDouble("price").toLong()
+                            val stop = best.optDouble("stop").toLong()
+                            if (quantity > 0 && price > 0) {
+                                save(load().filterNot { it.symbol.equals(best.optString("symbol"), true) } +
+                                    PortfolioHolding(best.optString("symbol"), quantity, price, price, stop))
+                            } else Toast.makeText(this@PortfolioActivity, "تعداد معتبر وارد کنید", Toast.LENGTH_SHORT).show()
+                        }.show()
+                }
+            }
+            builder.show()
+        } catch (e: Exception) {
+            AlertDialog.Builder(this@PortfolioActivity).setMessage("خواندن پیشنهادهای ذخیره‌شده ناموفق بود: ${e.message}")
+                .setPositiveButton("بستن", null).show()
+        }
     }
 
     private fun card(h:PortfolioHolding):LinearLayout {
