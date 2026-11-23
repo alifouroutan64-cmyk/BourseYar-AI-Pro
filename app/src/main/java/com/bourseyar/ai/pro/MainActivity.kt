@@ -663,6 +663,17 @@ class MainActivity : Activity() {
         return null
     }
 
+    // Prefer a populated alias over an earlier zero field; preserve zero only if all aliases are zero.
+    private fun firstActivityNumber(row: JSONObject, vararg keys: String): Double? {
+        var firstZero: Double? = null
+        for (key in keys) {
+            val number = firstNumber(row, key) ?: continue
+            if (number > 0.0) return number
+            if (number == 0.0 && firstZero == null) firstZero = number
+        }
+        return firstZero
+    }
+
     /**
      * Diagnostic-only request: reports DNS, HTTP status, content type and JSON shape.
      * It never treats a successful TCP/HTTP response as proof of valid live market data.
@@ -767,6 +778,7 @@ class MainActivity : Activity() {
                     val instrumentType = firstNumber(row, "yVal", "yval")?.toInt()
                     if (instrumentType != 300) return@mapNotNull null
                     commonStockRows++
+                    if (commonStockRows <= 5) diagnostic += "نمونه سهام عادی $commonStockRows: " + row.toString().take(1800) + "\\n"
                     // TSETMC market-watch has both descriptive and compact field names.
                     // Zero in a descriptive field must not mask a populated compact alias.
                     // Full descriptive fields may be zero in this compact MarketWatch response.
@@ -774,15 +786,18 @@ class MainActivity : Activity() {
                     val last = firstPositiveNumber(row, "pDrCotVal", "pl", "lastPrice", "last", "pdv")
                         ?: return@mapNotNull null
                     priceRows++
-                    val close = firstPositiveNumber(row, "pClosing", "pc", "closingPrice", "close", "pcl")
+                    val closeCandidate = firstPositiveNumber(row, "pClosing", "pc", "closingPrice", "close", "pcl")
+                    // Reject a likely wrong alias rather than displaying a closing price far from last price.
+                    val close = closeCandidate?.takeIf { kotlin.math.abs(it - last) / last <= 0.10 }
                     val previousClose = firstPositiveNumber(row, "priceYesterday", "py")
                     val change = previousClose?.let { 100.0 * (last - it) / it }
-                    val volume = firstNumber(row, "qTotTran5J", "tvol", "volume", "qtj")
-                    val value = firstNumber(row, "qTotCap", "tval", "tradedValue", "qtc")
-                    val trades = firstNumber(row, "zTotTran", "tno", "tradeCount", "ztt")
+                    val volume = firstActivityNumber(row, "qTotTran5J", "tvol", "volume", "qtj")
+                    val value = firstActivityNumber(row, "qTotCap", "tval", "tradedValue", "qtc")
+                    val trades = firstActivityNumber(row, "zTotTran", "tno", "tradeCount", "ztt")
                     listOf<Any?>(symbol, last, close, change, volume, value, trades)
                 }.sortedByDescending { it[5] as? Double ?: 0.0 }
                 diagnostic += "\nردیف‌های شیء JSON: $objectRows\nردیف‌های دارای نماد: $symbolRows\nسهام عادی با yVal=300: $commonStockRows\nردیف‌های دارای قیمت مثبت: $priceRows\nردیف‌های نهایی معتبر سهام عادی: ${parsed.size}\n"
+                lastMarketErrorReport = diagnostic
                 require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود. خام: ${rows.length()}، شیء: $objectRows، نماددار: $symbolRows، دارای قیمت: $priceRows" }
                 val shown = parsed.take(45)
                 val lines = shown.mapIndexed { index, item ->
