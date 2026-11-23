@@ -187,6 +187,10 @@ class MainActivity : Activity() {
                     }
                 }, LinearLayout.LayoutParams(0, -2, 1f))
                 body.addView(controls)
+                body.addView(Button(this).apply {
+                    text = "عیب‌یابی اتصال به TSETMC"
+                    setOnClickListener { diagnoseMarketConnection() }
+                })
                 marketResultsText = label("در انتظار دریافت اولین snapshot بازار…", 13f, Color.WHITE)
                 body.addView(marketResultsText)
                 card("محدودیت منبع", "منبع رایگان و بدون کلید API است، اما غیررسمی است؛ ممکن است از دسترس خارج شود، محدودیت نرخ داشته باشد یا داده با تأخیر برسد. در زمان خطا، داده قبلی به‌عنوان قیمت زنده نمایش داده نمی‌شود.")
@@ -587,6 +591,62 @@ class MainActivity : Activity() {
             if (value.isNotBlank() && value != "null") return value
         }
         return null
+    }
+
+    /**
+     * Diagnostic-only request: reports DNS, HTTP status, content type and JSON shape.
+     * It never treats a successful TCP/HTTP response as proof of valid live market data.
+     */
+    private fun diagnoseMarketConnection() {
+        if (marketRequestInFlight) {
+            if (this::marketResultsText.isInitialized) marketResultsText.text = "درخواست قبلی هنوز در حال اجراست؛ چند لحظه دیگر دوباره امتحان کنید."
+            return
+        }
+        marketRequestInFlight = true
+        if (this::marketResultsText.isInitialized) marketResultsText.text = "در حال بررسی DNS و پاسخ مستقیم TSETMC…"
+        thread {
+            val report = try {
+                val host = "cdn.tsetmc.com"
+                val addresses = runCatching {
+                    java.net.InetAddress.getAllByName(host).joinToString { it.hostAddress }
+                }.getOrElse { "خطای DNS: ${it.message ?: it.javaClass.simpleName}" }
+                val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 12000
+                    readTimeout = 20000
+                    requestMethod = "GET"
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
+                    setRequestProperty("Accept", "application/json, text/plain, */*")
+                    setRequestProperty("Accept-Language", "fa-IR,fa;q=0.9,en;q=0.8")
+                    setRequestProperty("Referer", "https://www.tsetmc.com/")
+                    setRequestProperty("Cache-Control", "no-cache")
+                }
+                try {
+                    val code = connection.responseCode
+                    val contentType = connection.contentType ?: "نامشخص"
+                    val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                        ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                    val shape = runCatching {
+                        val json = JSONObject(body)
+                        val keys = json.keys().asSequence().toList().take(30).joinToString(", ")
+                        val rows = json.optJSONArray("marketwatch") ?: json.optJSONArray("marketWatch")
+                        "کلیدهای JSON: ${keys.ifBlank { "ندارد" }} | تعداد ردیف marketwatch: ${rows?.length() ?: "کلید پیدا نشد"}"
+                    }.getOrElse { "JSON قابل‌تجزیه نیست: ${it.message ?: it.javaClass.simpleName}" }
+                    "نتیجه عیب‌یابی\nDNS: $addresses\nHTTP: $code\nContent-Type: $contentType\nحجم پاسخ: ${body.length} نویسه\n$shape\n\nنمونه پاسخ:\n${body.take(700).ifBlank { "(خالی)" }}"
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (e: Exception) {
+                "عیب‌یابی ناموفق\nنوع خطا: ${e.javaClass.simpleName}\nشرح: ${e.localizedMessage ?: "بدون توضیح"}"
+            }
+            runOnUiThread {
+                marketRequestInFlight = false
+                if (currentPage == "بازار" && this::marketResultsText.isInitialized) {
+                    marketResultsText.text = report
+                    status.text = "عیب‌یابی اتصال انجام شد؛ نتیجه را بررسی کنید"
+                }
+            }
+        }
     }
 
     private fun loadMarket() {
