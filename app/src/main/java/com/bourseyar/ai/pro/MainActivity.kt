@@ -27,6 +27,7 @@ class MainActivity : Activity() {
     private var marketFailures = 0
     private var currentPage = ""
     private lateinit var marketResultsText: TextView
+    private var lastMarketErrorReport: String = "هنوز گزارش خطایی ثبت نشده است."
     private val dashboardHandler = Handler(Looper.getMainLooper())
     private var dashboardPolling = false
     private var dashboardRequestInFlight = false
@@ -49,7 +50,12 @@ class MainActivity : Activity() {
             } }, LinearLayout.LayoutParams(0, -2, 1f))
         }
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val scroll = ScrollView(this).apply { addView(body) }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = true
+            isSmoothScrollingEnabled = true
+            addView(body, ScrollView.LayoutParams(-1, -2))
+        }
         root.addView(title); root.addView(status); root.addView(nav)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
@@ -190,6 +196,10 @@ class MainActivity : Activity() {
                 body.addView(Button(this).apply {
                     text = "عیب‌یابی اتصال به TSETMC"
                     setOnClickListener { diagnoseMarketConnection() }
+                })
+                body.addView(Button(this).apply {
+                    text = "کپی گزارش خطا"
+                    setOnClickListener { copyMarketErrorReport() }
                 })
                 marketResultsText = label("در انتظار دریافت اولین snapshot بازار…", 13f, Color.WHITE)
                 body.addView(marketResultsText)
@@ -657,6 +667,12 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun copyMarketErrorReport() {
+        val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("گزارش خطای بورس‌یار", lastMarketErrorReport))
+        Toast.makeText(this, "گزارش خطا کپی شد؛ آن را در گفتگو ارسال کنید.", Toast.LENGTH_LONG).show()
+    }
+
     private fun loadMarket() {
         if (marketRequestInFlight) return
         marketRequestInFlight = true
@@ -664,6 +680,7 @@ class MainActivity : Activity() {
         thread {
             var failure: String? = null
             var rendered = ""
+            var diagnostic = "گزارش خطای دریافت بازار\n"
             try {
                 val http = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 10000
@@ -673,21 +690,31 @@ class MainActivity : Activity() {
                     setRequestProperty("Accept", "application/json")
                 }
                 val code = try { http.responseCode } catch (e: Exception) { http.disconnect(); throw e }
+                val contentType = http.contentType ?: "نامشخص"
                 val stream = if (code in 200..299) http.inputStream else http.errorStream
                 val raw = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
                 http.disconnect()
+                diagnostic += "نشانی: $endpoint\nHTTP: $code\nنوع محتوا: $contentType\nحجم پاسخ: ${raw.length} نویسه\n"
                 require(code in 200..299) { "TSETMC پاسخ HTTP " + code + " برگرداند" }
                 val root = JSONObject(raw)
                 val rows = root.optJSONArray("marketwatch")
                     ?: root.optJSONArray("marketWatch")
                     ?: error("آرایه marketwatch در پاسخ پیدا نشد؛ ساختار سرویس تغییر کرده است")
+                diagnostic += "کلیدهای ریشه: ${root.keys().asSequence().toList().joinToString()}\nتعداد ردیف خام: ${rows.length()}\n"
+                diagnostic += "نمونه سه ردیف اول:\n" + (0 until minOf(3, rows.length())).joinToString("\n---\n") { i -> rows.optJSONObject(i)?.toString() ?: "ردیف $i شیء JSON نیست" }.take(3500) + "\n"
+                var objectRows = 0
+                var symbolRows = 0
+                var priceRows = 0
                 val parsed = (0 until rows.length()).mapNotNull { index ->
                     val row = rows.optJSONObject(index) ?: return@mapNotNull null
+                    objectRows++
                     val symbol = firstText(row, "lVal18AFC", "lva", "symbol", "instrumentName") ?: return@mapNotNull null
+                    symbolRows++
                     // TSETMC market-watch has both descriptive and compact field names.
                     // Zero in a descriptive field must not mask a populated compact alias.
                     val last = firstPositiveNumber(row, "pDrCotVal", "pl", "lastPrice", "last")
                         ?: return@mapNotNull null
+                    priceRows++
                     val close = firstPositiveNumber(row, "pClosing", "pc", "closingPrice", "close")
                     val previousClose = firstPositiveNumber(row, "priceYesterday", "py")
                     val change = previousClose?.let { 100.0 * (last - it) / it }
@@ -695,7 +722,8 @@ class MainActivity : Activity() {
                     val value = firstNumber(row, "qTotCap", "tval", "tradedValue")
                     listOf<Any?>(symbol, last, close, change, volume, value)
                 }.sortedByDescending { it[5] as? Double ?: 0.0 }
-                require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود" }
+                diagnostic += "\nردیف‌های شیء JSON: $objectRows\nردیف‌های دارای نماد: $symbolRows\nردیف‌های دارای قیمت مثبت: $priceRows\nردیف‌های نهایی معتبر: ${parsed.size}\n"
+                require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود. خام: ${rows.length()}، شیء: $objectRows، نماددار: $symbolRows، دارای قیمت: $priceRows" }
                 val shown = parsed.take(45)
                 val lines = shown.mapIndexed { index, item ->
                     val symbol = item[0] as String
@@ -715,6 +743,8 @@ class MainActivity : Activity() {
                 rendered = "تعداد ردیف معتبر: " + parsed.size + " | نمایش: " + shown.size + "\n\n" + lines.joinToString("\n")
             } catch (e: Exception) {
                 failure = e.localizedMessage ?: "خطای شبکه یا پاسخ نامعتبر"
+                diagnostic += "\nنوع استثنا: ${e.javaClass.name}\nشرح خطا: ${e.localizedMessage ?: "بدون توضیح"}\n"
+                lastMarketErrorReport = diagnostic
             }
             runOnUiThread {
                 marketRequestInFlight = false
@@ -728,7 +758,7 @@ class MainActivity : Activity() {
                 } else {
                     marketFailures = (marketFailures + 1).coerceAtMost(4)
                     if (currentPage == "بازار" && this::marketResultsText.isInitialized) {
-                        marketResultsText.text = "دریافت ناموفق: " + failure + "\nداده قبلی به‌عنوان زنده نگه‌داری نمی‌شود."
+                        marketResultsText.text = "دریافت ناموفق: " + failure + "\nگزارش کامل را با دکمه «کپی گزارش خطا» بردارید.\nداده قبلی به‌عنوان زنده نگه‌داری نمی‌شود."
                         status.text = "اتصال ناموفق | تلاش مجدد با فاصله افزایشی"
                     }
                 }
