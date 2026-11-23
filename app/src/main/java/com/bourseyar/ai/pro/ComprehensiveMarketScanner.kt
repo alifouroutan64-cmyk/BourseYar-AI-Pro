@@ -107,9 +107,13 @@ object ComprehensiveMarketScanner {
             try {
                 val history = TsetmcHistoryProvider.fetchDaily(leader.symbol)
                 val technical = AnalysisEngine.scanCandles(leader.symbol, history.candles, 0.0) ?: return@forEachIndexed
+                // Compare today with up to 20 prior valid sessions; require 10 valid observations.
                 val volumes = history.candles.dropLast(1).takeLast(20).map { it.volume }
-                val averageVolume = volumes.average()
-                val relativeVolume = if (averageVolume > 0) history.candles.last().volume / averageVolume else null
+                    .filter { it.isFinite() && it > 0.0 }
+                val currentVolume = history.candles.last().volume
+                val averageVolume = if (volumes.size >= 10) volumes.average() else 0.0
+                val relativeVolume = if (averageVolume > 0.0 && currentVolume.isFinite() && currentVolume > 0.0)
+                    currentVolume / averageVolume else null
                 val flow = runCatching { TsetmcHistoryProvider.fetchFiveSessionFlowScore(leader.symbol) }.getOrNull()
                 val snapshot = runCatching { TsetmcHistoryProvider.fetchLiveSnapshot(leader.symbol) }.getOrNull()
                 val quote = snapshot?.quote
@@ -146,10 +150,16 @@ object ComprehensiveMarketScanner {
                 if (fundamental?.hasFinancialMetrics != true) warnings += "نسب بنیادی قابل استخراج نبود؛ وزن بنیادی حذف شد"
                 if (flow == null) warnings += "جریان پول حقیقی ناقص"
                 if (quote == null) warnings += "تابلوی لحظه‌ای دریافت نشد"
+                when {
+                    relativeVolume == null -> warnings += "حجم یا میانگین ۲۰ جلسه‌ای معتبر نیست؛ تأیید حجمی نداریم"
+                    relativeVolume >= 2.0 -> warnings += "حجم امروز حداقل ۲ برابر میانگین جلسات قبل است؛ تأیید حجمی قوی (نیازمند تأیید قیمت و نقدشوندگی)"
+                    relativeVolume >= 1.5 -> warnings += "حجم امروز حداقل ۱.۵ برابر میانگین جلسات قبل است؛ افزایش حجم قابل توجه"
+                    relativeVolume < 1.0 -> warnings += "حجم امروز کمتر از میانگین جلسات قبل است؛ قدرت حرکت کاهش می‌یابد"
+                }
                 val firstLevel = snapshot?.orderBook?.firstOrNull()
                 val isQueue = firstLevel?.let { (it.bidPrice ?: 0.0) > 0 && (it.askPrice ?: 0.0) <= 0 } ?: false
                 val tooExtended = technical.report.rsi?.let { it >= 78.0 } ?: false
-                val lowLiquidity = leader.tradedValue <= 0 || (relativeVolume != null && relativeVolume < 0.4)
+                val lowLiquidity = leader.tradedValue <= 0 || relativeVolume == null || relativeVolume < 0.4
                 val reason = when {
                     isQueue -> "صف خرید/عدم امکان ورود تأیید شده؛ از پیشنهاد خرید حذف شد"
                     tooExtended -> "RSI بیش از حد بالا؛ از ورود دیرهنگام جلوگیری شد"
