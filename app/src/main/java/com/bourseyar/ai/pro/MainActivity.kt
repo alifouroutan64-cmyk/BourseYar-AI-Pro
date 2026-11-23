@@ -335,6 +335,58 @@ class MainActivity : Activity() {
                     }
                 }
                 body.addView(leadersButton)
+                val comprehensiveScanButton = Button(this).apply {
+                    text = "اسکن جامع رایگان: تکنیکال + جریان پول + بنیادی"
+                    setOnClickListener {
+                        isEnabled = false
+                        text = "در حال تحلیل چندمنبعی بازار…"
+                        status.text = "دریافت تاریخچه، تابلو، جریان پول و اطلاعات بنیادی در حال انجام است"
+                        Thread {
+                            val result = runCatching { ComprehensiveMarketScanner.scan(30, 6) }
+                            runOnUiThread {
+                                isEnabled = true
+                                text = "اجرای اسکن جامع رایگان بازار"
+                                val candidates = result.getOrNull()
+                                if (candidates == null) {
+                                    card("اسکن جامع ناموفق", result.exceptionOrNull()?.message ?: "خطای نامشخص")
+                                    status.text = "اسکن جامع ناموفق"
+                                } else {
+                                    val json = org.json.JSONArray()
+                                    candidates.forEach { c ->
+                                        json.put(org.json.JSONObject()
+                                            .put("symbol", c.symbol)
+                                            .put("price", c.lastPrice)
+                                            .put("score", c.compositeScore)
+                                            .put("technical", c.technicalScore)
+                                            .put("flow", c.flowScore ?: org.json.JSONObject.NULL)
+                                            .put("relativeVolume", c.relativeVolume ?: org.json.JSONObject.NULL)
+                                            .put("stop", c.stopLoss)
+                                            .put("target1", c.target1)
+                                            .put("target2", c.target2)
+                                            .put("recommendation", c.recommendation)
+                                            .put("excludedReason", c.excludedReason ?: org.json.JSONObject.NULL))
+                                    }
+                                    prefs.edit().putString("comprehensive_scan", json.toString())
+                                        .putLong("comprehensive_scan_time", System.currentTimeMillis()).apply()
+                                    val eligible = candidates.filter { it.excludedReason == null }
+                                    card("نتیجه اسکن جامع | ${candidates.size} نماد",
+                                        candidates.joinToString("\n\n") { c ->
+                                            "${c.symbol} | امتیاز کل ${c.compositeScore}/100 | تکنیکال ${c.technicalScore}/100 | ${c.recommendation}\n" +
+                                            "قیمت: ${"%.0f".format(java.util.Locale.US, c.lastPrice)} | جریان پول: ${c.flowScore ?: "ناموجود"} | حجم نسبی: ${c.relativeVolume?.let { "%.2fx".format(java.util.Locale.US, it) } ?: "ناموجود"}\n" +
+                                            "حدضرر: ${"%.0f".format(java.util.Locale.US, c.stopLoss)} | هدف ۱: ${"%.0f".format(java.util.Locale.US, c.target1)} | هدف ۲: ${"%.0f".format(java.util.Locale.US, c.target2)}\n" +
+                                            (c.excludedReason?.let { "⛔ حذف از خرید: $it\n" } ?: "✅ از فیلتر اجرایی عبور کرده\n") +
+                                            c.dataWarnings.joinToString("؛ ")
+                                        }.ifBlank { "هیچ نمادی تحلیل معتبر دریافت نکرد." })
+                                    card("بهترین گزینه فعلی",
+                                        eligible.firstOrNull()?.let { "${it.symbol} | امتیاز ${it.compositeScore}/100 | ${it.recommendation}\nاین پیشنهاد در بخش سبد نیز قابل مشاهده خواهد بود." }
+                                            ?: "هیچ سهمی شرایط ورود قابل اجرا را ندارد؛ از خرید اجباری خودداری کنید.")
+                                    status.text = "اسکن جامع انجام شد | پیشنهادها در سبد ذخیره شدند"
+                                }
+                            }
+                        }.start()
+                    }
+                }
+                body.addView(comprehensiveScanButton)
                 val minVolumeInput = EditText(this).apply {
                     hint = "حداقل میانگین حجم روزانه ۲۰ روز (۰ = غیرفعال)"
                     inputType = android.text.InputType.TYPE_CLASS_NUMBER
