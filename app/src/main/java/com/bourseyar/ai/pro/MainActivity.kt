@@ -790,13 +790,21 @@ class MainActivity : Activity() {
                     // Reject a likely wrong alias rather than displaying a closing price far from last price.
                     val close = closeCandidate?.takeIf { kotlin.math.abs(it - last) / last <= 0.10 }
                     val previousClose = firstPositiveNumber(row, "priceYesterday", "py")
-                    val change = previousClose?.let { 100.0 * (last - it) / it }
+                    // Daily percentage is based on closing price, not the last traded price.
+                    val changeBase = close ?: last
+                    val change = previousClose?.let { 100.0 * (changeBase - it) / it }
                     val volume = firstActivityNumber(row, "qTotTran5J", "tvol", "volume", "qtj")
                     val value = firstActivityNumber(row, "qTotCap", "tval", "tradedValue", "qtc")
                     val trades = firstActivityNumber(row, "zTotTran", "tno", "tradeCount", "ztt")
-                    listOf<Any?>(symbol, last, close, change, volume, value, trades)
+                    val instrumentId = firstText(row, "insCode", "inscode", "instrumentId", "instrumentID", "id")
+                    listOf<Any?>(symbol, last, close, change, volume, value, trades, instrumentId)
+                }.distinctBy { item ->
+                    // Deduplicate only identical instrument IDs. Same display symbol with
+                    // different IDs is retained and surfaced in diagnostics.
+                    (item.getOrNull(7) as? String)?.let { "id:$it" } ?: "symbol:${item[0]}"
                 }.sortedByDescending { it[5] as? Double ?: 0.0 }
-                diagnostic += "\nردیف‌های شیء JSON: $objectRows\nردیف‌های دارای نماد: $symbolRows\nسهام عادی با yVal=300: $commonStockRows\nردیف‌های دارای قیمت مثبت: $priceRows\nردیف‌های نهایی معتبر سهام عادی: ${parsed.size}\n"
+                val duplicateCount = priceRows - parsed.size
+                diagnostic += "\nردیف‌های شیء JSON: $objectRows\nردیف‌های دارای نماد: $symbolRows\nسهام عادی با yVal=300: $commonStockRows\nردیف‌های دارای قیمت مثبت: $priceRows\nتکراری‌های حذف‌شده با شناسه یکسان: $duplicateCount\nردیف‌های نهایی معتبر سهام عادی: ${parsed.size}\n"
                 lastMarketErrorReport = diagnostic
                 require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود. خام: ${rows.length()}، شیء: $objectRows، نماددار: $symbolRows، دارای قیمت: $priceRows" }
                 val shown = parsed.take(45)
@@ -808,6 +816,8 @@ class MainActivity : Activity() {
                     val volume = item[4] as? Double
                     val value = item[5] as? Double
                     val trades = item.getOrNull(6) as? Double
+                    val instrumentId = item.getOrNull(7) as? String
+                    val lowTradeWarning = trades != null && trades < 20.0
                     val changeText = change?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "درصد ناموجود"
                     (index + 1).toString() + ". " + symbol + " | آخرین: " +
                         "%.0f".format(java.util.Locale.US, last) +
@@ -815,7 +825,8 @@ class MainActivity : Activity() {
                         " | تغییر: " + changeText +
                         " | حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
                          " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                        " | تعداد معامله: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—")
+                        " | تعداد معامله: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
+                        (if (lowTradeWarning) " | هشدار: معاملات بسیار کم" else "")
                 }
                 rendered = "تعداد ردیف معتبر: " + parsed.size + " | نمایش: " + shown.size + "\n\n" + lines.joinToString("\n")
             } catch (e: Exception) {
