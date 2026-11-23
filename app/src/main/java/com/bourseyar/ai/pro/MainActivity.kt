@@ -786,7 +786,7 @@ class MainActivity : Activity() {
                     val last = firstPositiveNumber(row, "pDrCotVal", "pl", "lastPrice", "last", "pdv")
                         ?: return@mapNotNull null
                     priceRows++
-                    val closeCandidate = firstPositiveNumber(row, "pClosing", "pc", "closingPrice", "close", "pcl")
+                    val closeCandidate = firstPositiveNumber(row, "pClosing", "pcl", "closingPrice", "close")
                     // Reject a likely wrong alias rather than displaying a closing price far from last price.
                     val close = closeCandidate?.takeIf { kotlin.math.abs(it - last) / last <= 0.10 }
                     val previousClose = firstPositiveNumber(row, "priceYesterday", "py")
