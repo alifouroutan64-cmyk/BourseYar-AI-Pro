@@ -195,6 +195,9 @@ object TsetmcHistoryProvider {
             val code = row.optString("insCode")
             val symbol = sequenceOf("lva", "lVal18AFC", "symbol").map { row.optString(it) }
                 .firstOrNull { it.isNotBlank() && it != "null" }.orEmpty()
+            // Keep the scanner universe to common shares; derivatives/options and debt instruments are excluded.
+            val instrumentType = row.numberOrNull("yVal", "yval")?.toInt()
+            if (instrumentType != 300) return@mapNotNull null
             // Compact MarketWatch aliases may be populated while descriptive fields are zero.
             val volume = row.positiveNumber("qTotTran5J", "tvol", "volume", "qtj")
             val value = row.positiveNumber("qTotCap", "tval", "tradedValue", "qtc")
