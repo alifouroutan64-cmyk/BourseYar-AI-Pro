@@ -27,6 +27,12 @@ class MainActivity : Activity() {
     private var marketFailures = 0
     private var currentPage = ""
     private lateinit var marketResultsText: TextView
+    private val dashboardHandler = Handler(Looper.getMainLooper())
+    private var dashboardPolling = false
+    private var dashboardRequestInFlight = false
+    private lateinit var dashboardSymbolInput: EditText
+    private lateinit var dashboardResultsText: TextView
+    private lateinit var dashboardAutoButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,7 +43,7 @@ class MainActivity : Activity() {
         status = label("نسخه توسعه‌ای | داده بازار هنوز اعتبارسنجی نشده", 12f, accent)
         status.gravity = Gravity.CENTER
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        listOf("بازار", "تحلیل", "اسکنر", "سبد", "راهنما").forEach { name ->
+        listOf("بازار", "تابلو", "تحلیل", "اسکنر", "سبد", "راهنما").forEach { name ->
             nav.addView(Button(this).apply { text = name; textSize = 11f; setOnClickListener { show(name) } },
                 LinearLayout.LayoutParams(0, -2, 1f))
         }
@@ -62,10 +68,12 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         if (currentPage == "بازار") startMarketPolling()
+        if (currentPage == "تابلو") startDashboardPolling()
     }
 
     override fun onStop() {
         stopMarketPolling()
+        stopDashboardPolling()
         super.onStop()
     }
 
@@ -87,9 +95,74 @@ class MainActivity : Activity() {
         marketHandler.postDelayed({ if (marketPolling && currentPage == "بازار") loadMarket() }, delay)
     }
 
+    private fun startDashboardPolling() {
+        if (dashboardPolling) return
+        dashboardPolling = true
+        if (this::dashboardAutoButton.isInitialized) dashboardAutoButton.text = "توقف تازه‌سازی خودکار"
+        loadInstrumentDashboard()
+    }
+
+    private fun stopDashboardPolling() {
+        dashboardPolling = false
+        dashboardHandler.removeCallbacksAndMessages(null)
+    }
+
+    private fun scheduleDashboardPoll() {
+        if (!dashboardPolling || currentPage != "تابلو") return
+        dashboardHandler.postDelayed({
+            if (dashboardPolling && currentPage == "تابلو") loadInstrumentDashboard()
+        }, 15_000L)
+    }
+
+    private fun loadInstrumentDashboard() {
+        if (dashboardRequestInFlight || !this::dashboardSymbolInput.isInitialized ||
+            !this::dashboardResultsText.isInitialized) return
+        val symbol = dashboardSymbolInput.text.toString().trim()
+        if (symbol.isBlank()) {
+            dashboardResultsText.text = "نام نماد را وارد کنید."
+            return
+        }
+        dashboardRequestInFlight = true
+        dashboardResultsText.text = "در حال دریافت قیمت، دفتر سفارش، معاملات و جریان حقیقی/حقوقی برای $symbol…"
+        Thread {
+            val result = runCatching { TsetmcHistoryProvider.fetchLiveSnapshot(symbol) }
+            runOnUiThread {
+                dashboardRequestInFlight = false
+                if (currentPage == "تابلو" && this::dashboardResultsText.isInitialized) {
+                    val snapshot = result.getOrNull()
+                    if (snapshot == null) {
+                        dashboardResultsText.text = "دریافت تابلو ناموفق بود:\n${result.exceptionOrNull()?.message ?: "خطای نامشخص"}\n\nداده قبلی به‌عنوان زنده نمایش داده نمی‌شود."
+                        status.text = "خطا در دریافت تابلو نماد"
+                    } else {
+                        val q = snapshot.quote
+                        val stamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+                        val quoteText = "نماد: ${snapshot.symbol} | وضعیت: ${q.state ?: "نامشخص"}\n" +
+                            "آخرین معامله: ${q.last?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | پایانی: ${q.close?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                            "تغییر: ${q.changePercent?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "—"} | حجم: ${q.volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | تعداد معاملات: ${q.tradeCount?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}"
+                        val bookText = snapshot.orderBook.joinToString("\n") { level ->
+                            "سطح ${level.level} | خرید: ${level.bidPrice?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} / حجم ${level.bidVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} / سفارش ${level.bidCount?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}" +
+                                "   || فروش: ${level.askPrice?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} / حجم ${level.askVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} / سفارش ${level.askCount?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}"
+                        }.ifBlank { "دفتر سفارش خالی است یا بازار در حال معامله نیست." }
+                        val tradesText = snapshot.trades.joinToString("\n") { trade ->
+                            "${trade.time} | قیمت ${trade.price?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | حجم ${trade.volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | تعداد ${trade.count?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}"
+                        }.ifBlank { "معامله‌ای در پاسخ اخیر موجود نیست." }
+                        val flow = snapshot.clientFlow
+                        val flowText = if (flow == null) "اطلاعات جریان حقیقی/حقوقی موجود نیست."
+                            else "خالص حجم حقیقی: ${flow.netIndividualVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | خالص حجم حقوقی: ${flow.netLegalVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                "سرانه خرید حقیقی: ${flow.individualBuyPerBuyer?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | سرانه فروش حقیقی: ${flow.individualSellPerSeller?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}"
+                        dashboardResultsText.text = "آخرین دریافت موفق برنامه: $stamp\n\n$quoteText\n\nدفتر سفارش پنج‌سطحی\n$bookText\n\n۲۰ معامله اخیر\n$tradesText\n\nجریان حقیقی/حقوقی\n$flowText"
+                        status.text = "تابلو $symbol دریافت شد | زمان دریافت $stamp"
+                    }
+                }
+                scheduleDashboardPoll()
+            }
+        }.start()
+    }
+
     private fun show(page: String) {
         currentPage = page
         if (page != "بازار") stopMarketPolling()
+        if (page != "تابلو") stopDashboardPolling()
         body.removeAllViews()
         when (page) {
             "بازار" -> {
@@ -118,6 +191,42 @@ class MainActivity : Activity() {
                 card("محدودیت منبع", "منبع رایگان و بدون کلید API است، اما غیررسمی است؛ ممکن است از دسترس خارج شود، محدودیت نرخ داشته باشد یا داده با تأخیر برسد. در زمان خطا، داده قبلی به‌عنوان قیمت زنده نمایش داده نمی‌شود.")
                 startMarketPolling()
                 (controls.getChildAt(1) as Button).text = if (marketPolling) "توقف خودکار" else "شروع خودکار"
+            }
+            "تابلو" -> {
+                card("تابلوخوانی زنده نماد", "قیمت، پنج سطح سفارش خرید و فروش، معاملات اخیر و جریان حقیقی/حقوقی از endpointهای عمومی TSETMC دریافت می‌شود. تازه‌سازی خودکار هر ۱۵ ثانیه تلاش می‌شود؛ زمان‌بندی تضمین دریافت لحظه‌ای نیست.")
+                dashboardSymbolInput = EditText(this).apply {
+                    hint = "نماد را وارد کنید؛ مثال: فولاد"
+                    setText("فولاد")
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.LTGRAY)
+                    singleLine = true
+                }
+                body.addView(dashboardSymbolInput)
+                val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                controls.addView(Button(this).apply {
+                    text = "دریافت تابلو"
+                    setOnClickListener { loadInstrumentDashboard() }
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                dashboardAutoButton = Button(this).apply {
+                    text = "شروع خودکار"
+                    setOnClickListener {
+                        if (dashboardPolling) {
+                            stopDashboardPolling()
+                            text = "شروع خودکار"
+                            status.text = "تازه‌سازی خودکار تابلو متوقف شد"
+                        } else {
+                            startDashboardPolling()
+                            text = "توقف تازه‌سازی خودکار"
+                        }
+                    }
+                }
+                controls.addView(dashboardAutoButton, LinearLayout.LayoutParams(0, -2, 1f))
+                body.addView(controls)
+                dashboardResultsText = label("برای دریافت اطلاعات نماد، دکمه دریافت تابلو را بزنید.", 13f, Color.WHITE)
+                body.addView(dashboardResultsText)
+                card("نکته مهم دفتر سفارش", "داده bestLimits ممکن است در زمان تعطیلی بازار خالی باشد. سفارش‌های نمایش‌داده‌شده تضمین اجرای معامله نیستند.")
+                card("محدودیت داده", "سرویس TSETMC عمومی و غیررسمی است؛ ممکن است از خارج ایران مسدود یا محدود شود. اگر دریافت ناموفق بود، شبکه را بررسی کنید. اطلاعات این صفحه توصیه خرید یا فروش نیست.")
+                startDashboardPolling()
             }
             "تحلیل" -> {
                 card("تحلیل تکنیکال", "محاسبه‌گر RSI(14)، EMA20/50، MACD، ATR و حمایت/مقاومت برای سری کندل‌های معتبر در موتور تحلیل اضافه شده است. تا زمان اتصال منبع تاریخچه OHLC معتبر، تحلیل نماد واقعی ارائه نمی‌شود.")

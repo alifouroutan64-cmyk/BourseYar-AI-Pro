@@ -29,6 +29,21 @@ data class ClientFlowDay(
     val individualSellPerSeller: Double?
 )
 
+
+data class LiveQuote(
+    val last: Double?, val close: Double?, val changePercent: Double?,
+    val volume: Double?, val tradeCount: Double?, val state: String?, val time: String?
+)
+data class OrderBookLevel(
+    val level: Int, val bidCount: Double?, val bidVolume: Double?, val bidPrice: Double?,
+    val askPrice: Double?, val askVolume: Double?, val askCount: Double?
+)
+data class RecentTrade(val time: String, val price: Double?, val volume: Double?, val count: Double?)
+data class InstrumentLiveSnapshot(
+    val symbol: String, val quote: LiveQuote, val orderBook: List<OrderBookLevel>,
+    val trades: List<RecentTrade>, val clientFlow: ClientFlow?
+)
+
 object TsetmcHistoryProvider {
     private const val BASE = "https://cdn.tsetmc.com/api"
     private const val CHART = "https://members.tsetmc.com/tsev2/chart/data/Financial.aspx"
@@ -201,6 +216,82 @@ object TsetmcHistoryProvider {
         val grossTotal = valid.sumOf { it.second.second }
         val positive = valid.count { it.second.first > 0.0 }
         return AnalysisEngine.normalizedFlowScore(netTotal, grossTotal, positive, valid.size)
+    }
+
+
+    /** One-symbol live dashboard: quote, five-level book, recent trades and client flow. */
+    fun fetchLiveSnapshot(symbol: String): InstrumentLiveSnapshot {
+        val query = URLEncoder.encode(symbol.trim(), "UTF-8")
+        val search = JSONObject(get("$BASE/Instrument/GetInstrumentSearch/$query"))
+        val items = search.optJSONArray("instrumentSearch")
+            ?: error("ساختار جستجوی نماد TSETMC تغییر کرده است")
+        val normalized = symbol.trim().replace("ي", "ی").replace("ك", "ک")
+        val match = (0 until items.length()).map { items.getJSONObject(it) }
+            .firstOrNull { it.optString("lVal18AFC").replace("ي", "ی").replace("ك", "ک") == normalized }
+            ?: error("نماد دقیق «$symbol» پیدا نشد")
+        val code = match.optString("insCode")
+        require(code.matches(Regex("\\d{5,25}"))) { "کد معاملاتی نماد نامعتبر است" }
+
+        val quoteRoot = JSONObject(get("$BASE/ClosingPrice/GetClosingPriceInfo/$code"))
+        val quote = quoteRoot.optJSONObject("closingPriceInfo")
+            ?: error("اطلاعات قیمت نماد در پاسخ TSETMC وجود ندارد")
+        val last = quote.numberOrNull("pDrCotVal", "last")
+        val close = quote.numberOrNull("pClosing", "close")
+        val change = quote.numberOrNull("priceChangePercent")
+            ?: if (close != null && close > 0 && last != null) (last - close) / close * 100.0 else null
+        val state = quote.optJSONObject("instrumentState")?.optString("cEtavalTitle")?.takeIf { it.isNotBlank() && it != "null" }
+        val time = quote.opt("hEven")?.toString()?.takeIf { it.isNotBlank() }
+            ?: quote.opt("lastHEven")?.toString()?.takeIf { it.isNotBlank() }
+        val liveQuote = LiveQuote(
+            last, close, change,
+            quote.numberOrNull("qTotTran5J", "tvol"),
+            quote.numberOrNull("zTotTran", "tno"),
+            state, time
+        )
+
+        val bookRoot = JSONObject(get("$BASE/BestLimits/$code"))
+        val bookRows = bookRoot.optJSONArray("bestLimits") ?: JSONArray()
+        val book = (0 until bookRows.length()).mapNotNull { index ->
+            val row = bookRows.optJSONObject(index) ?: return@mapNotNull null
+            val level = row.optInt("number", index + 1).coerceIn(1, 5)
+            val bidPrice = row.numberOrNull("pd", "pMeDem")
+            val bidVolume = row.numberOrNull("qd", "qTitMeDem")
+            val bidCount = row.numberOrNull("zd", "zOrdMeDem")
+            val askPrice = row.numberOrNull("po", "pMeOf")
+            val askVolume = row.numberOrNull("qo", "qTitMeOf")
+            val askCount = row.numberOrNull("zo", "zOrdMeOf")
+            if (listOf(bidPrice, bidVolume, askPrice, askVolume).all { it == null }) null
+            else OrderBookLevel(level, bidCount, bidVolume, bidPrice, askPrice, askVolume, askCount)
+        }.sortedBy { it.level }
+
+        val tradeRoot = JSONObject(get("$BASE/Trade/GetTrade/$code"))
+        val tradeRows = tradeRoot.optJSONArray("trade") ?: JSONArray()
+        val trades = (0 until tradeRows.length()).mapNotNull { index ->
+            val row = tradeRows.optJSONObject(index) ?: return@mapNotNull null
+            val price = row.numberOrNull("pTran", "price")
+            val volume = row.numberOrNull("qTitTran", "volume")
+            if (price == null && volume == null) null
+            else RecentTrade(
+                row.opt("hEven")?.toString()?.takeIf { it.isNotBlank() } ?: "—",
+                price, volume, row.numberOrNull("nTran", "count")
+            )
+        }.sortedByDescending { it.time }.take(20)
+
+        val flow = runCatching {
+            val flowRoot = JSONObject(get("$BASE/ClientType/GetClientType/$code/1/0"))
+            val row = flowRoot.optJSONObject("clientType") ?: return@runCatching null
+            val buyI = row.numberOrNull("buy_I_Volume")
+            val sellI = row.numberOrNull("sell_I_Volume")
+            val buyN = row.numberOrNull("buy_N_Volume")
+            val sellN = row.numberOrNull("sell_N_Volume")
+            if (buyI == null || sellI == null || buyN == null || sellN == null) null
+            else ClientFlow(
+                buyI - sellI, buyN - sellN,
+                row.numberOrNull("buy_CountI")?.takeIf { it > 0 }?.let { buyI / it },
+                row.numberOrNull("sell_CountI")?.takeIf { it > 0 }?.let { sellI / it }
+            )
+        }.getOrNull()
+        return InstrumentLiveSnapshot(symbol.trim().uppercase(), liveQuote, book, trades, flow)
     }
 
     fun fetchDaily(symbol: String): HistoricalSeries {
