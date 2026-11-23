@@ -756,12 +756,17 @@ class MainActivity : Activity() {
                 diagnostic += "نمونه سه ردیف اول:\n" + (0 until minOf(3, rows.length())).joinToString("\n---\n") { i -> rows.optJSONObject(i)?.toString() ?: "ردیف $i شیء JSON نیست" }.take(3500) + "\n"
                 var objectRows = 0
                 var symbolRows = 0
+                var commonStockRows = 0
                 var priceRows = 0
                 val parsed = (0 until rows.length()).mapNotNull { index ->
                     val row = rows.optJSONObject(index) ?: return@mapNotNull null
                     objectRows++
                     val symbol = firstText(row, "lVal18AFC", "lva", "symbol", "instrumentName") ?: return@mapNotNull null
                     symbolRows++
+                    // yVal=300 is common stock. Do not mix options, debt and other instruments into the equity watchlist.
+                    val instrumentType = firstNumber(row, "yVal", "yval")?.toInt()
+                    if (instrumentType != 300) return@mapNotNull null
+                    commonStockRows++
                     // TSETMC market-watch has both descriptive and compact field names.
                     // Zero in a descriptive field must not mask a populated compact alias.
                     // Full descriptive fields may be zero in this compact MarketWatch response.
@@ -777,7 +782,7 @@ class MainActivity : Activity() {
                     val trades = firstNumber(row, "zTotTran", "tno", "tradeCount", "ztt")
                     listOf<Any?>(symbol, last, close, change, volume, value, trades)
                 }.sortedByDescending { it[5] as? Double ?: 0.0 }
-                diagnostic += "\nردیف‌های شیء JSON: $objectRows\nردیف‌های دارای نماد: $symbolRows\nردیف‌های دارای قیمت مثبت: $priceRows\nردیف‌های نهایی معتبر: ${parsed.size}\n"
+                diagnostic += "\nردیف‌های شیء JSON: $objectRows\nردیف‌های دارای نماد: $symbolRows\nسهام عادی با yVal=300: $commonStockRows\nردیف‌های دارای قیمت مثبت: $priceRows\nردیف‌های نهایی معتبر سهام عادی: ${parsed.size}\n"
                 require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود. خام: ${rows.length()}، شیء: $objectRows، نماددار: $symbolRows، دارای قیمت: $priceRows" }
                 val shown = parsed.take(45)
                 val lines = shown.mapIndexed { index, item ->
