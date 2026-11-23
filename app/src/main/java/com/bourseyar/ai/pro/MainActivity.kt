@@ -764,15 +764,18 @@ class MainActivity : Activity() {
                     symbolRows++
                     // TSETMC market-watch has both descriptive and compact field names.
                     // Zero in a descriptive field must not mask a populated compact alias.
-                    val last = firstPositiveNumber(row, "pDrCotVal", "pl", "lastPrice", "last")
+                    // Full descriptive fields may be zero in this compact MarketWatch response.
+                    // Compact aliases from the real payload are used as fallbacks.
+                    val last = firstPositiveNumber(row, "pDrCotVal", "pl", "lastPrice", "last", "pdv")
                         ?: return@mapNotNull null
                     priceRows++
-                    val close = firstPositiveNumber(row, "pClosing", "pc", "closingPrice", "close")
+                    val close = firstPositiveNumber(row, "pClosing", "pc", "closingPrice", "close", "pcl")
                     val previousClose = firstPositiveNumber(row, "priceYesterday", "py")
                     val change = previousClose?.let { 100.0 * (last - it) / it }
-                    val volume = firstNumber(row, "qTotTran5J", "tvol", "volume")
-                    val value = firstNumber(row, "qTotCap", "tval", "tradedValue")
-                    listOf<Any?>(symbol, last, close, change, volume, value)
+                    val volume = firstNumber(row, "qTotTran5J", "tvol", "volume", "qtj")
+                    val value = firstNumber(row, "qTotCap", "tval", "tradedValue", "qtc")
+                    val trades = firstNumber(row, "zTotTran", "tno", "tradeCount", "ztt")
+                    listOf<Any?>(symbol, last, close, change, volume, value, trades)
                 }.sortedByDescending { it[5] as? Double ?: 0.0 }
                 diagnostic += "\nردیف‌های شیء JSON: $objectRows\nردیف‌های دارای نماد: $symbolRows\nردیف‌های دارای قیمت مثبت: $priceRows\nردیف‌های نهایی معتبر: ${parsed.size}\n"
                 require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود. خام: ${rows.length()}، شیء: $objectRows، نماددار: $symbolRows، دارای قیمت: $priceRows" }
@@ -784,13 +787,15 @@ class MainActivity : Activity() {
                     val change = item[3] as? Double
                     val volume = item[4] as? Double
                     val value = item[5] as? Double
+                    val trades = item.getOrNull(6) as? Double
                     val changeText = change?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "درصد ناموجود"
                     (index + 1).toString() + ". " + symbol + " | آخرین: " +
                         "%.0f".format(java.util.Locale.US, last) +
                         " | پایانی: " + (close?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
                         " | تغییر: " + changeText +
                         " | حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                        " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—")
+                         " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
+                        " | تعداد معامله: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—")
                 }
                 rendered = "تعداد ردیف معتبر: " + parsed.size + " | نمایش: " + shown.size + "\n\n" + lines.joinToString("\n")
             } catch (e: Exception) {
