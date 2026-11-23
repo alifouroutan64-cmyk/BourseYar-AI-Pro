@@ -2,6 +2,8 @@ package com.bourseyar.ai.pro
 
 import android.app.Activity
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.graphics.Color
 import android.view.Gravity
 import android.view.View
@@ -18,7 +20,13 @@ class MainActivity : Activity() {
     private lateinit var body: LinearLayout
     private lateinit var status: TextView
     private val prefs by lazy { getSharedPreferences("bourseyar", MODE_PRIVATE) }
-    private val endpoint = "https://cdn.tsetmc.com/api/ClosingPrice/GetMarketWatch?market=0&priceType=1"
+    private val endpoint = "https://cdn.tsetmc.com/api/ClosingPrice/GetMarketWatch?market=0&industrialGroup=&paperTypes%5B0%5D=1&paperTypes%5B1%5D=2&paperTypes%5B2%5D=3&paperTypes%5B3%5D=4&paperTypes%5B4%5D=5&paperTypes%5B5%5D=6&paperTypes%5B6%5D=7&paperTypes%5B7%5D=8&paperTypes%5B8%5D=9&showTraded=false&withBestLimits=false&hEven=0&RefID=0"
+    private val marketHandler = Handler(Looper.getMainLooper())
+    private var marketPolling = false
+    private var marketRequestInFlight = false
+    private var marketFailures = 0
+    private var currentPage = ""
+    private lateinit var marketResultsText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,13 +59,63 @@ class MainActivity : Activity() {
         val lp = LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 8, 0, 8); body.addView(box, lp)
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (currentPage == "بازار") startMarketPolling()
+    }
+
+    override fun onStop() {
+        stopMarketPolling()
+        super.onStop()
+    }
+
+    private fun startMarketPolling() {
+        if (marketPolling) return
+        marketPolling = true
+        loadMarket()
+    }
+
+    private fun stopMarketPolling() {
+        marketPolling = false
+        marketHandler.removeCallbacksAndMessages(null)
+    }
+
+    private fun scheduleMarketPoll() {
+        if (!marketPolling) return
+        val multiplier = 1L shl marketFailures.coerceIn(0, 4)
+        val delay = (5_000L * multiplier).coerceAtMost(60_000L)
+        marketHandler.postDelayed({ if (marketPolling && currentPage == "بازار") loadMarket() }, delay)
+    }
+
     private fun show(page: String) {
+        currentPage = page
+        if (page != "بازار") stopMarketPolling()
         body.removeAllViews()
         when (page) {
             "بازار" -> {
-                card("نمای کلی بازار", "برای دریافت پاسخ خام از سرویس عمومی TSETMC دکمه زیر را بزنید. تا زمان شناخت و اعتبارسنجی ساختار پاسخ، قیمت‌ها و نمادها به‌عنوان داده معاملاتی نمایش داده نمی‌شوند.")
-                body.addView(Button(this).apply { text = "دریافت داده بازار"; setOnClickListener { loadMarket() } })
-                card("وضعیت منبع", "منبع فعلی: endpoint عمومی و غیررسمی TSETMC\nتضمین پایداری یا دسترس‌پذیری ندارد. داده خام، سیگنال خرید نیست.")
+                card("دیده‌بان آنلاین بازار", "قیمت‌ها از دیده‌بان عمومی TSETMC دریافت می‌شوند. به‌روزرسانی خودکار هر ۵ ثانیه تلاش می‌شود؛ این فاصله تضمین تازگی یا تأخیر صفر نیست.")
+                val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                controls.addView(Button(this).apply {
+                    text = "به‌روزرسانی الآن"
+                    setOnClickListener { loadMarket() }
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                controls.addView(Button(this).apply {
+                    text = if (marketPolling) "توقف خودکار" else "شروع خودکار"
+                    setOnClickListener {
+                        if (marketPolling) {
+                            stopMarketPolling()
+                            text = "شروع خودکار"
+                            status.text = "به‌روزرسانی خودکار متوقف شد"
+                        } else {
+                            startMarketPolling()
+                            text = "توقف خودکار"
+                        }
+                    }
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                body.addView(controls)
+                marketResultsText = label("در انتظار دریافت اولین snapshot بازار…", 13f, Color.WHITE)
+                body.addView(marketResultsText)
+                card("محدودیت منبع", "منبع رایگان و بدون کلید API است، اما غیررسمی است؛ ممکن است از دسترس خارج شود، محدودیت نرخ داشته باشد یا داده با تأخیر برسد. در زمان خطا، داده قبلی به‌عنوان قیمت زنده نمایش داده نمی‌شود.")
             }
             "تحلیل" -> {
                 card("تحلیل تکنیکال", "محاسبه‌گر RSI(14)، EMA20/50، MACD، ATR و حمایت/مقاومت برای سری کندل‌های معتبر در موتور تحلیل اضافه شده است. تا زمان اتصال منبع تاریخچه OHLC معتبر، تحلیل نماد واقعی ارائه نمی‌شود.")
@@ -322,27 +380,101 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun firstNumber(row: JSONObject, vararg keys: String): Double? {
+        for (key in keys) {
+            if (!row.has(key) || row.isNull(key)) continue
+            val value = row.opt(key)
+            val number = when (value) {
+                is Number -> value.toDouble()
+                is String -> value.replace(",", "").toDoubleOrNull()
+                else -> null
+            }
+            if (number != null && number.isFinite()) return number
+        }
+        return null
+    }
+
+    private fun firstText(row: JSONObject, vararg keys: String): String? {
+        for (key in keys) {
+            val value = row.optString(key).trim()
+            if (value.isNotBlank() && value != "null") return value
+        }
+        return null
+    }
+
     private fun loadMarket() {
-        status.text = "در حال اتصال به TSETMC…"
+        if (marketRequestInFlight) return
+        marketRequestInFlight = true
+        if (currentPage == "بازار") status.text = "در حال دریافت snapshot بازار از TSETMC…"
         thread {
+            var failure: String? = null
+            var rendered = ""
             try {
                 val http = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10000; readTimeout = 15000
-                    setRequestProperty("User-Agent", "Mozilla/5.0 BourseYarAIPro/0.2")
+                    connectTimeout = 10000
+                    readTimeout = 15000
+                    requestMethod = "GET"
+                    setRequestProperty("User-Agent", "Mozilla/5.0 BourseYarAIPro/0.3")
                     setRequestProperty("Accept", "application/json")
                 }
-                val code = http.responseCode
-                val raw = (if (code in 200..299) http.inputStream else http.errorStream).bufferedReader().use { it.readText() }
+                val code = try { http.responseCode } catch (e: Exception) { http.disconnect(); throw e }
+                val stream = if (code in 200..299) http.inputStream else http.errorStream
+                val raw = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
                 http.disconnect()
-                runOnUiThread {
-                    status.text = "پاسخ HTTP $code | داده هنوز اعتبارسنجی نشده"
-                    body.removeAllViews()
-                    card("نتیجه اتصال", "کد HTTP: $code\nحجم پاسخ: ${raw.length} نویسه")
-                    card("پاسخ خام محدودشده", raw.take(5000).ifBlank { "پاسخ خالی" })
-                    card("یادآوری", "این پاسخ هنوز به نماد/قیمت قابل معامله تبدیل نشده است؛ برای جلوگیری از خطا، سیگنال معاملاتی تولید نمی‌شود.")
+                require(code in 200..299) { "TSETMC پاسخ HTTP " + code + " برگرداند" }
+                val root = JSONObject(raw)
+                val rows = root.optJSONArray("marketwatch")
+                    ?: root.optJSONArray("marketWatch")
+                    ?: error("آرایه marketwatch در پاسخ پیدا نشد؛ ساختار سرویس تغییر کرده است")
+                val parsed = (0 until rows.length()).mapNotNull { index ->
+                    val row = rows.optJSONObject(index) ?: return@mapNotNull null
+                    val symbol = firstText(row, "lVal18AFC", "lva", "symbol", "instrumentName") ?: return@mapNotNull null
+                    val last = firstNumber(row, "pDrCotVal", "lastPrice", "last") ?: return@mapNotNull null
+                    val close = firstNumber(row, "pClosing", "closingPrice", "close")
+                    if (last <= 0.0) return@mapNotNull null
+                    val change = close?.takeIf { it > 0.0 }?.let { 100.0 * (last - it) / it }
+                    val volume = firstNumber(row, "qTotTran5J", "tvol", "volume")
+                    val value = firstNumber(row, "qTotCap", "tval", "tradedValue")
+                    listOf<Any?>(symbol, last, close, change, volume, value)
+                }.sortedByDescending { it[5] as? Double ?: 0.0 }
+                require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود" }
+                val shown = parsed.take(45)
+                val lines = shown.mapIndexed { index, item ->
+                    val symbol = item[0] as String
+                    val last = item[1] as Double
+                    val close = item[2] as? Double
+                    val change = item[3] as? Double
+                    val volume = item[4] as? Double
+                    val value = item[5] as? Double
+                    val changeText = change?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "درصد ناموجود"
+                    (index + 1).toString() + ". " + symbol + " | آخرین: " +
+                        "%.0f".format(java.util.Locale.US, last) +
+                        " | پایانی: " + (close?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
+                        " | تغییر: " + changeText +
+                        " | حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
+                        " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—")
                 }
+                rendered = "تعداد ردیف معتبر: " + parsed.size + " | نمایش: " + shown.size + "\n\n" + lines.joinToString("\n")
             } catch (e: Exception) {
-                runOnUiThread { status.text = "اتصال ناموفق"; card("خطا", e.localizedMessage ?: "خطای شبکه") }
+                failure = e.localizedMessage ?: "خطای شبکه یا پاسخ نامعتبر"
+            }
+            runOnUiThread {
+                marketRequestInFlight = false
+                if (failure == null) {
+                    marketFailures = 0
+                    if (currentPage == "بازار" && this::marketResultsText.isInitialized) {
+                        val stamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+                        marketResultsText.text = "آخرین دریافت موفق: " + stamp + "\n\n" + rendered
+                        status.text = "اتصال برقرار | دیده‌بان TSETMC | تلاش برای تازه‌سازی دوره‌ای"
+                    }
+                } else {
+                    marketFailures = (marketFailures + 1).coerceAtMost(4)
+                    if (currentPage == "بازار" && this::marketResultsText.isInitialized) {
+                        marketResultsText.text = "دریافت ناموفق: " + failure + "\nداده قبلی به‌عنوان زنده نگه‌داری نمی‌شود."
+                        status.text = "اتصال ناموفق | تلاش مجدد با فاصله افزایشی"
+                    }
+                }
+                scheduleMarketPoll()
             }
         }
     }
