@@ -232,6 +232,81 @@ class MainActivity : Activity() {
                     setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
                 }
                 body.addView(feeInput)
+                body.addView(Button(this).apply {
+                    text = "اسکن خودکار ۱۰ نماد برتر بازار (۲ تا ۷ روزه)"
+                    setOnClickListener {
+                        val minAvgVol = minVolumeInput.text.toString().toDoubleOrNull()
+                        val minScore = scoreInput.text.toString().toIntOrNull()
+                        val feeBps = feeInput.text.toString().toDoubleOrNull()
+                        if (minAvgVol == null || !minAvgVol.isFinite() || minAvgVol < 0 || minScore == null || minScore !in 0..100 || feeBps == null || !feeBps.isFinite() || feeBps < 0) {
+                            card("تنظیمات نامعتبر", "فیلتر حجم، امتیاز و کارمزد را بررسی کنید")
+                        } else {
+                            isEnabled = false
+                            text = "در حال دریافت ۱۰ تاریخچه روزانه…"
+                            status.text = "اسکن خودکار بازار شروع شد؛ دریافت‌ها با فاصله انجام می‌شوند…"
+                            Thread {
+                                try {
+                                    val leaders = TsetmcHistoryProvider.fetchMarketLeaders(20)
+                                    val selected = leaders.take(10)
+                                    val histories = mutableListOf<HistoricalSeries>()
+                                    val errors = mutableListOf<String>()
+                                    selected.forEachIndexed { index, item ->
+                                        try {
+                                            histories += TsetmcHistoryProvider.fetchDaily(item.symbol)
+                                        } catch (e: Exception) {
+                                            errors += item.symbol + ": " + (e.message ?: "تاریخچه نامعتبر")
+                                        }
+                                        if (index < selected.lastIndex) Thread.sleep(650)
+                                    }
+                                    require(histories.isNotEmpty()) { "هیچ تاریخچه معتبری دریافت نشد. " + errors.joinToString("؛ ") }
+                                    val flowScores = histories.take(5).associate { data ->
+                                        data.symbol to runCatching { TsetmcHistoryProvider.fetchFiveSessionFlowScore(data.symbol) }.getOrNull()
+                                    }
+                                    val ranked = histories.mapNotNull { data ->
+                                        val candidate = AnalysisEngine.scanCandles(data.symbol, data.candles, minAvgVol) ?: return@mapNotNull null
+                                        val avgVol = data.candles.dropLast(1).takeLast(20).map { it.volume }.average()
+                                        val relativeVolume = if (avgVol > 0.0) data.candles.last().volume / avgVol else null
+                                        val stop = candidate.report.last * (1.0 - candidate.riskPercent / 100.0)
+                                        val risk = candidate.report.last - stop
+                                        val rr = if (risk > 0.0) (candidate.target1 - candidate.report.last) / risk else null
+                                        val flow = flowScores[data.symbol]
+                                        val total = OpportunityScoring.score(candidate.report.score, flow, relativeVolume, rr)
+                                        Triple(candidate, total, Pair(relativeVolume, flow))
+                                    }.sortedByDescending { it.second ?: -1 }
+                                    val bt = histories.associate { it.symbol to AnalysisEngine.backtest(it.candles, minScore, feeBps) }
+                                    runOnUiThread {
+                                        symbolsInput.setText(leaders.joinToString("، ") { it.symbol })
+                                        card("اسکن خودکار بازار | ۱۰ نماد برتر ارزش معاملات",
+                                            ranked.joinToString("\n\n") { row ->
+                                                val c = row.first
+                                                "${c.symbol} | امتیاز ترکیبی ${row.second ?: "—"}/100 | تکنیکال ${c.report.score}/100 | ${c.report.trend}\n" +
+                                                "حجم نسبی: ${row.third.first?.let { "%.2fx".format(java.util.Locale.US, it) } ?: "ناموجود"} | جریان پول ۵ جلسه: ${row.third.second ?: "ناموجود"}\n" +
+                                                "قیمت تعدیل‌شده: ${c.report.last} | RSI: ${c.report.rsi ?: "—"} | ATR: ${c.report.atr ?: "—"}\n" +
+                                                "حدضرر آزمایشی: ${c.report.last * (1.0 - c.riskPercent / 100.0)} | هدف ۱.۵R: ${c.target1} | هدف ۲R: ${c.target2}\n" +
+                                                c.report.notes.joinToString("؛ ")
+                                            }.ifBlank { "هیچ نمادی از فیلترهای فعلی عبور نکرد." } +
+                                            "\n\nتاریخچه ۱۰ نماد اول ارزش معاملات دریافت شد؛ جریان پول فقط برای حداکثر ۵ نماد اول تلاش می‌شود.")
+                                        bt.forEach { (symbol, rows) ->
+                                            card("بک‌تست $symbol | افق ۲ تا ۷ جلسه", rows.joinToString("\n") { b ->
+                                                "${b.holdingDays} روز: ${b.trades} معامله | برد %.1f%% | میانگین %.2f%% | PF %.2f | افت %.2f%%".format(java.util.Locale.US, b.winRatePercent, b.averageReturnPercent, b.profitFactor, b.maxDrawdownPercent)
+                                            } + "\nکارمزد رفت‌وبرگشت: $feeBps bps؛ معاملات هم‌پوشان‌اند.")
+                                        }
+                                        if (errors.isNotEmpty()) card("نمادهای ناموفق", errors.joinToString("\n"))
+                                        card("محدودیت اسکن", "این غربالگری بر اساس ۱۰ نماد اول ارزش معاملات گزارش‌شده است، نه تمام بازار. داده‌های TSETMC عمومی و غیررسمی‌اند؛ حجم نسبی و امتیاز ترکیبی احتمال سود نیستند و وضعیت توقف/صف/عمق سفارش‌ها هنوز به‌صورت کامل بررسی نمی‌شود.")
+                                        status.text = "اسکن تمام شد | ${histories.size}/${selected.size} تاریخچه معتبر"
+                                        (body.findViewWithTag<Button>("marketWideScanButton"))?.let { it.isEnabled = true; it.text = "اجرای دوباره اسکن خودکار بازار" }
+                                    }
+                                } catch (e: Exception) {
+                                    runOnUiThread {
+                                        card("خطا در اسکن خودکار بازار", e.message ?: "خطای شبکه یا ساختار پاسخ")
+                                        status.text = "اسکن بازار ناموفق بود"
+                                        (body.findViewWithTag<Button>("marketWideScanButton"))?.let { it.isEnabled = true; it.text = "تلاش مجدد اسکن خودکار بازار" }
+                                    }
+                                }
+                            }.start()
+                        }
+                    }
+                }.apply { tag = "marketWideScanButton" })
                 lateinit var autoScanButton: Button
                 autoScanButton = Button(this).apply {
                     text = "دریافت تاریخچه از TSETMC و اسکن"
