@@ -69,4 +69,22 @@ class AnalysisEngineTest {
         assertEquals(null, OpportunityScoring.score(70, 50, Double.NaN, 2.0))
         assertEquals(null, OpportunityScoring.score(70, 50, 1.0, -1.0))
     }
+    @Test
+    fun opportunityScoreRewardsHigherRelativeVolumeOnlyAsOneFactor() {
+        val lowVolume = OpportunityScoring.score(80, 80, 0.5, 2.0)
+        val normalVolume = OpportunityScoring.score(80, 80, 1.0, 2.0)
+        val strongVolume = OpportunityScoring.score(80, 80, 2.0, 2.0)
+        assertTrue(lowVolume != null && normalVolume != null && strongVolume != null)
+        assertTrue(lowVolume < normalVolume)
+        assertTrue(normalVolume < strongVolume)
+    }
+
+    @Test
+    fun missingVolumeIsNotTreatedAsConfirmedVolume() {
+        val missing = OpportunityScoring.score(80, 80, null, 2.0)
+        val average = OpportunityScoring.score(80, 80, 1.0, 2.0)
+        assertTrue(missing != null && average != null)
+        assertTrue(missing < average)
+    }
+
 }
