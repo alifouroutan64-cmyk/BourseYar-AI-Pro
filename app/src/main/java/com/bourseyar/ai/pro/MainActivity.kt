@@ -796,12 +796,12 @@ class MainActivity : Activity() {
                     val volume = firstActivityNumber(row, "qTotTran5J", "tvol", "volume", "qtj")
                     val value = firstActivityNumber(row, "qTotCap", "tval", "tradedValue", "qtc")
                     val trades = firstActivityNumber(row, "zTotTran", "tno", "tradeCount", "ztt")
-                    val instrumentId = firstText(row, "insCode", "inscode", "instrumentId", "instrumentID", "id")
+                    val instrumentId = firstText(row, "insCode", "inscode", "instrumentId", "instrumentID")
                     listOf<Any?>(symbol, last, close, change, volume, value, trades, instrumentId)
                 }.distinctBy { item ->
                     // Deduplicate only identical instrument IDs. Same display symbol with
                     // different IDs is retained and surfaced in diagnostics.
-                    (item.getOrNull(7) as? String)?.let { "id:$it" } ?: "symbol:${item[0]}"
+                    (item.getOrNull(7) as? String)?.let { "id:$it" } ?: "row:${item.hashCode()}"
                 }.sortedByDescending { it[5] as? Double ?: 0.0 }
                 val duplicateCount = priceRows - parsed.size
                 diagnostic += "\nردیف‌های شیء JSON: $objectRows\nردیف‌های دارای نماد: $symbolRows\nسهام عادی با yVal=300: $commonStockRows\nردیف‌های دارای قیمت مثبت: $priceRows\nتکراری‌های حذف‌شده با شناسه یکسان: $duplicateCount\nردیف‌های نهایی معتبر سهام عادی: ${parsed.size}\n"
