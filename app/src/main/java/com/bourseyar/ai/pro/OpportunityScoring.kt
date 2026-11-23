@@ -2,7 +2,7 @@ package com.bourseyar.ai.pro
 
 /**
  * Transparent 0..100 swing-opportunity score.
- * Missing optional inputs are excluded and remaining weights are renormalized.
+ * Missing flow and reward/risk inputs are excluded; missing volume receives no confirmation credit.
  * This is a ranking aid, not a probability of profit or a trade instruction.
  */
 object OpportunityScoring {
@@ -19,10 +19,9 @@ object OpportunityScoring {
 
         val parts = mutableListOf(technicalScore.toDouble() to 0.50)
         if (flowScore != null) parts += flowScore.toDouble() to 0.25
-        if (relativeVolume != null) {
-            val volumeScore = (relativeVolume / 2.0 * 100.0).coerceIn(0.0, 100.0)
-            parts += volumeScore to 0.15
-        }
+        // Volume is a required confirmation factor: absent data must not receive the neutral/average score.
+        val volumeScore = relativeVolume?.let { (it / 2.0 * 100.0).coerceIn(0.0, 100.0) } ?: 0.0
+        parts += volumeScore to 0.15
         if (rewardRisk != null) {
             val rrScore = ((rewardRisk - 1.0) / 1.5 * 100.0).coerceIn(0.0, 100.0)
             parts += rrScore to 0.10
