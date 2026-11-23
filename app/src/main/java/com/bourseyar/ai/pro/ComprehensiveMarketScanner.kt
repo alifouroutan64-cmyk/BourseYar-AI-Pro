@@ -16,13 +16,14 @@ data class FundamentalSnapshot(
     val filingsFound: Int,
     val recentFilingTitles: List<String>,
     val eps: Double? = null,
+    val pe: Double? = null,
     val revenueGrowthPercent: Double? = null,
     val netProfitGrowthPercent: Double? = null,
     val roePercent: Double? = null,
     val debtToEquity: Double? = null,
     val sourceNote: String = "کدال عمومی؛ شاخص‌های مالی فقط در صورت استخراج معتبر نمایش داده می‌شوند"
 ) {
-    val hasFinancialMetrics: Boolean get() = listOf(eps, revenueGrowthPercent, netProfitGrowthPercent, roePercent, debtToEquity).any { it != null }
+    val hasFinancialMetrics: Boolean get() = listOf(eps, pe, revenueGrowthPercent, netProfitGrowthPercent, roePercent, debtToEquity).any { it != null }
 }
 
 /** Free Codal search API. Its schema is not a stable contract; this parser is intentionally defensive. */
@@ -113,7 +114,9 @@ object ComprehensiveMarketScanner {
                 val snapshot = runCatching { TsetmcHistoryProvider.fetchLiveSnapshot(leader.symbol) }.getOrNull()
                 val quote = snapshot?.quote
                 val last = quote?.last ?: quote?.close ?: technical.report.last
-                val fundamental = runCatching { CodalPublicApi.searchFilings(leader.symbol) }.getOrNull()
+                val codal = runCatching { CodalPublicApi.searchFilings(leader.symbol) }.getOrNull()
+                val tseFund = runCatching { TsetmcFundamentalApi.fetch(leader.symbol) }.getOrNull()
+                val fundamental = if (codal != null || tseFund != null) FundamentalSnapshot(leader.symbol, codal?.filingsFound ?: 0, codal?.recentFilingTitles.orEmpty(), eps = tseFund?.eps, pe = tseFund?.pe) else null
                 val stop = technical.report.support?.let { minOf(it, last * (1.0 - technical.riskPercent / 100.0)) }
                     ?: last * (1.0 - technical.riskPercent / 100.0)
                 val risk = last - stop
@@ -126,6 +129,7 @@ object ComprehensiveMarketScanner {
                     if (!f.hasFinancialMetrics) null else {
                         var score = 50
                         f.eps?.let { if (it > 0) score += 15 else score -= 15 }
+                        f.pe?.let { if (it in 1.0..15.0) score += 15 else if (it > 30.0) score -= 10 }
                         f.revenueGrowthPercent?.let { if (it > 0) score += 15 else score -= 10 }
                         f.netProfitGrowthPercent?.let { if (it > 0) score += 15 else score -= 10 }
                         f.roePercent?.let { if (it >= 15) score += 10 else if (it < 0) score -= 10 }
@@ -134,9 +138,9 @@ object ComprehensiveMarketScanner {
                     }
                 }
                 val components = mutableListOf<Pair<Int, Double>>(technicalScore to 0.45)
-                if (flow != null) components += flow to 0.20
-                if (relativeVolume != null) components += ((relativeVolume / 2.0 * 100).coerceIn(0.0, 100.0).toInt()) to 0.15
-                if (fundamentalScore != null) components += fundamentalScore to 0.20
+                if (flow != null) components += (flow to 0.20)
+                if (relativeVolume != null) components += (((relativeVolume / 2.0 * 100).coerceIn(0.0, 100.0).toInt()) to 0.15)
+                if (fundamentalScore != null) components += (fundamentalScore to 0.20)
                 val score = (components.sumOf { it.first * it.second } / components.sumOf { it.second }).toInt().coerceIn(0, 100)
                 val warnings = mutableListOf<String>()
                 if (fundamental?.hasFinancialMetrics != true) warnings += "نسب بنیادی قابل استخراج نبود؛ وزن بنیادی حذف شد"
@@ -158,5 +162,47 @@ object ComprehensiveMarketScanner {
             if (index < historyCount - 1) Thread.sleep(600)
         }
         return output.sortedWith(compareBy<ComprehensiveCandidate> { if (it.excludedReason == null) 0 else 1 }.thenByDescending { it.compositeScore })
+    }
+}
+
+
+data class TsetmcFundamentalMetrics(val eps: Double?, val pe: Double?, val sector: String?)
+
+/** Best-effort public instrument fundamentals (EPS/P-E) from TSETMC; never marks missing fields as zero. */
+object TsetmcFundamentalApi {
+    private const val BASE = "https://cdn.tsetmc.com/api"
+    private fun get(url: String): JSONObject {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10000; readTimeout = 15000
+            setRequestProperty("User-Agent", "Mozilla/5.0 BourseYarAIPro")
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            require(code in 200..299 && text.isNotBlank()) { "TSETMC اطلاعات بنیادی HTTP $code" }
+            return JSONObject(text)
+        } finally { connection.disconnect() }
+    }
+    private fun numeric(obj: JSONObject, vararg keys: String): Double? {
+        for (key in keys) {
+            val v = obj.opt(key)
+            val n = when (v) { is Number -> v.toDouble(); is String -> v.replace(",", "").toDoubleOrNull(); else -> null }
+            if (n != null && n.isFinite()) return n
+        }
+        return null
+    }
+    fun fetch(symbol: String): TsetmcFundamentalMetrics {
+        val search = get("$BASE/Instrument/GetInstrumentSearch/${URLEncoder.encode(symbol, "UTF-8")}")
+        val rows = search.optJSONArray("instrumentSearch") ?: JSONArray()
+        val code = rows.optJSONObject(0)?.optString("insCode")?.takeIf { it.isNotBlank() }
+            ?: error("کد ابزار نماد $symbol پیدا نشد")
+        val info = get("$BASE/Instrument/GetInstrumentInfo/${URLEncoder.encode(code, "UTF-8")}")
+        val obj = info.optJSONObject("instrumentInfo") ?: info
+        val eps = numeric(obj, "eps", "EPS", "estimatedEPS")
+        val pe = numeric(obj, "pe", "P/E", "peRatio")
+        val sector = obj.optString("sector", obj.optString("sectorName", null))
+        return TsetmcFundamentalMetrics(eps, pe, sector.takeIf { !it.isNullOrBlank() })
     }
 }
