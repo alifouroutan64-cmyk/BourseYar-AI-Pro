@@ -54,7 +54,7 @@ class MainActivity : Activity() {
             isFillViewport = true
             isVerticalScrollBarEnabled = true
             isSmoothScrollingEnabled = true
-            addView(body, ScrollView.LayoutParams(-1, -2))
+            addView(body)
         }
         root.addView(title); root.addView(status); root.addView(nav)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
