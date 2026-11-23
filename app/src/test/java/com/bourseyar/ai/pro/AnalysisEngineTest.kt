@@ -75,8 +75,8 @@ class AnalysisEngineTest {
         val normalVolume = OpportunityScoring.score(80, 80, 1.0, 2.0)
         val strongVolume = OpportunityScoring.score(80, 80, 2.0, 2.0)
         assertTrue(lowVolume != null && normalVolume != null && strongVolume != null)
-        assertTrue(lowVolume < normalVolume)
-        assertTrue(normalVolume < strongVolume)
+        assertTrue(requireNotNull(lowVolume) < requireNotNull(normalVolume))
+        assertTrue(requireNotNull(normalVolume) < requireNotNull(strongVolume))
     }
 
     @Test
@@ -84,7 +84,7 @@ class AnalysisEngineTest {
         val missing = OpportunityScoring.score(80, 80, null, 2.0)
         val average = OpportunityScoring.score(80, 80, 1.0, 2.0)
         assertTrue(missing != null && average != null)
-        assertTrue(missing < average)
+        assertTrue(requireNotNull(missing) < requireNotNull(average))
     }
 
 }
