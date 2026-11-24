@@ -168,6 +168,19 @@ class AnalysisEngineTest {
         assertTrue(requireNotNull(missing) < requireNotNull(average))
     }
 
+    @Test
+    fun rsiReturnsNeutralForFlatPrices() {
+        assertEquals(50.0, AnalysisEngine.rsi(List(20) { 100.0 })!!, 0.0001)
+    }
+
+    @Test
+    fun rsiReturnsZeroForOnlyLossesAndOneHundredForOnlyGains() {
+        val rising = (1..20).map { it.toDouble() }
+        val falling = (1..20).map { (21 - it).toDouble() }
+        assertEquals(100.0, AnalysisEngine.rsi(rising)!!, 0.0001)
+        assertEquals(0.0, AnalysisEngine.rsi(falling)!!, 0.0001)
+    }
+
 }
 
 
