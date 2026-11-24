@@ -1,7 +1,12 @@
 name: Android APK build
+
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
+      - feature/real-symbol-analysis
+      - rewrite/complete-stable
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -15,23 +20,29 @@ jobs:
     steps:
       - name: دریافت کد
         uses: actions/checkout@v4
+
       - name: تنظیم جاوا ۱۷
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: نصب گرادل
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: آماده‌سازی Android SDK بدون بسته منسوخ tools
+
+      - name: نصب Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
       - name: اجرای آزمون‌های واحد
         run: gradle --no-daemon testDebugUnitTest --stacktrace
+
       - name: ساخت نسخه آزمایشی APK
         run: gradle --no-daemon assembleDebug --stacktrace
+
       - name: بارگذاری فایل نصب آزمایشی
         uses: actions/upload-artifact@v4
         with:
@@ -39,36 +50,57 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
-      - name: بررسی وجود تنظیمات امضای انتشار
-        id: signing
+
+      # Pull-request builds intentionally do not access repository secrets.
+      # Every manual/push build must produce a signed release, not a misleading green debug-only run.
+      - name: بررسی تنظیمات امضای انتشار
+        if: ${{ github.event_name != 'pull_request' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.BOURSEYAR_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.BOURSEYAR_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.BOURSEYAR_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.BOURSEYAR_KEY_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: آماده‌سازی کلید امضای انتشار
-        if: ${{ steps.signing.outputs.ready == 'true' }}
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64" || { echo "BOURSEYAR_KEYSTORE_BASE64 is missing"; exit 1; }
+          test -n "$STORE_PASSWORD" || { echo "BOURSEYAR_STORE_PASSWORD is missing"; exit 1; }
+          test -n "$KEY_ALIAS" || { echo "BOURSEYAR_KEY_ALIAS is missing"; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "BOURSEYAR_KEY_PASSWORD is missing"; exit 1; }
+
+      - name: آماده‌سازی و اعتبارسنجی کلید امضای انتشار
+        if: ${{ github.event_name != 'pull_request' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.BOURSEYAR_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BOURSEYAR_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BOURSEYAR_KEY_ALIAS }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/bourseyar-release.jks"
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/bourseyar-release.jks"
           test -s "$RUNNER_TEMP/bourseyar-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/bourseyar-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "Keystore file and requested alias are valid."
+
       - name: ساخت APK انتشار امضاشده
-        if: ${{ steps.signing.outputs.ready == 'true' }}
+        if: ${{ github.event_name != 'pull_request' }}
         env:
           BOURSEYAR_STORE_FILE: ${{ runner.temp }}/bourseyar-release.jks
           BOURSEYAR_STORE_PASSWORD: ${{ secrets.BOURSEYAR_STORE_PASSWORD }}
           BOURSEYAR_KEY_ALIAS: ${{ secrets.BOURSEYAR_KEY_ALIAS }}
           BOURSEYAR_KEY_PASSWORD: ${{ secrets.BOURSEYAR_KEY_PASSWORD }}
         run: gradle --no-daemon assembleRelease --stacktrace
+
+      - name: بررسی امضای APK انتشار
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
       - name: بارگذاری APK انتشار امضاشده
-        if: ${{ steps.signing.outputs.ready == 'true' }}
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v4
         with:
           name: BourseYar-release-signed-apk
