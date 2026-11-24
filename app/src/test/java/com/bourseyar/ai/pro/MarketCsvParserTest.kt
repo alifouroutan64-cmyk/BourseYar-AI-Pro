@@ -7,7 +7,7 @@ class MarketCsvParserTest {
     private fun date(day: Int) = java.time.LocalDate.of(2026, 1, 1).plusDays((day - 1).toLong()).toString()
 
     private fun row(date: String, close: Int = 100) =
-        "فولاد,$date,99,${close + 1},${close - 1},$close,1000"
+        "فولاد,$date,99,${close + 1},98,$close,1000"
 
     @Test
     fun sortsRowsChronologicallyAndPreservesOpenAndVolume() {
