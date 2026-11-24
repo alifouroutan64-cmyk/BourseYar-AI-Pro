@@ -874,47 +874,6 @@ class MainActivity : Activity() {
         styleTree(body)
     }
 
-    private fun firstNumber(row: JSONObject, vararg keys: String): Double? {
-        for (key in keys) {
-            if (!row.has(key) || row.isNull(key)) continue
-            val value = row.opt(key)
-            val number = when (value) {
-                is Number -> value.toDouble()
-                is String -> value.replace(",", "").toDoubleOrNull()
-                else -> null
-            }
-            if (number != null && number.isFinite()) return number
-        }
-        return null
-    }
-
-    private fun firstText(row: JSONObject, vararg keys: String): String? {
-        for (key in keys) {
-            val value = row.optString(key).trim()
-            if (value.isNotBlank() && value != "null") return value
-        }
-        return null
-    }
-
-    private fun firstPositiveNumber(row: JSONObject, vararg keys: String): Double? {
-        for (key in keys) {
-            val number = firstNumber(row, key)
-            if (number != null && number > 0.0) return number
-        }
-        return null
-    }
-
-    // Prefer a populated alias over an earlier zero field; preserve zero only if all aliases are zero.
-    private fun firstActivityNumber(row: JSONObject, vararg keys: String): Double? {
-        var firstZero: Double? = null
-        for (key in keys) {
-            val number = firstNumber(row, key) ?: continue
-            if (number > 0.0) return number
-            if (number == 0.0 && firstZero == null) firstZero = number
-        }
-        return firstZero
-    }
-
     /**
      * Diagnostic-only request: reports DNS, HTTP status, content type and JSON shape.
      * It never treats a successful TCP/HTTP response as proof of valid live market data.
@@ -1006,58 +965,20 @@ class MainActivity : Activity() {
                     ?: error("آرایه marketwatch در پاسخ پیدا نشد؛ ساختار سرویس تغییر کرده است")
                 diagnostic += "کلیدهای ریشه: ${root.keys().asSequence().toList().joinToString()}\nتعداد ردیف خام: ${rows.length()}\n"
                 diagnostic += "نمونه سه ردیف اول:\n" + (0 until minOf(3, rows.length())).joinToString("\n---\n") { i -> rows.optJSONObject(i)?.toString() ?: "ردیف $i شیء JSON نیست" }.take(3500) + "\n"
-                var objectRows = 0
-                var symbolRows = 0
-                var commonStockRows = 0
-                var priceRows = 0
-                val parsed = (0 until rows.length()).mapNotNull { index ->
-                    val row = rows.optJSONObject(index) ?: return@mapNotNull null
-                    objectRows++
-                    val symbol = firstText(row, "lVal18AFC", "lva", "symbol", "instrumentName") ?: return@mapNotNull null
-                    symbolRows++
-                    // yVal=300 is common stock. Do not mix options, debt and other instruments into the equity watchlist.
-                    val instrumentType = firstNumber(row, "yVal", "yval")?.toInt()
-                    if (instrumentType != 300) return@mapNotNull null
-                    commonStockRows++
-                    if (commonStockRows <= 5) diagnostic += "نمونه سهام عادی $commonStockRows: " + row.toString().take(1800) + "\n"
-                    // TSETMC market-watch has both descriptive and compact field names.
-                    // Zero in a descriptive field must not mask a populated compact alias.
-                    // Full descriptive fields may be zero in this compact MarketWatch response.
-                    // Compact aliases from the real payload are used as fallbacks.
-                    val last = firstPositiveNumber(row, "pDrCotVal", "pl", "lastPrice", "last", "pdv")
-                        ?: return@mapNotNull null
-                    priceRows++
-                    val closeCandidate = firstPositiveNumber(row, "pClosing", "pcl", "closingPrice", "close")
-                    // Reject a likely wrong alias rather than displaying a closing price far from last price.
-                    val close = closeCandidate?.takeIf { kotlin.math.abs(it - last) / last <= 0.10 }
-                    val previousClose = firstPositiveNumber(row, "priceYesterday", "py")
-                    // Daily percentage is based on closing price, not the last traded price.
-                    val changeBase = close ?: last
-                    val change = previousClose?.let { 100.0 * (changeBase - it) / it }
-                    val volume = firstActivityNumber(row, "qTotTran5J", "tvol", "volume", "qtj")
-                    val value = firstActivityNumber(row, "qTotCap", "tval", "tradedValue", "qtc")
-                    val trades = firstActivityNumber(row, "zTotTran", "tno", "tradeCount", "ztt")
-                    val instrumentId = firstText(row, "insCode", "inscode", "instrumentId", "instrumentID")
-                    listOf<Any?>(symbol, last, close, change, volume, value, trades, instrumentId)
-                }.distinctBy { item ->
-                    // Deduplicate only identical instrument IDs. Same display symbol with
-                    // different IDs is retained and surfaced in diagnostics.
-                    (item.getOrNull(7) as? String)?.let { "id:$it" } ?: "row:${item.hashCode()}"
-                }.sortedByDescending { it[5] as? Double ?: 0.0 }
-                val duplicateCount = priceRows - parsed.size
-                diagnostic += "\nردیف‌های شیء JSON: $objectRows\nردیف‌های دارای نماد: $symbolRows\nسهام عادی با yVal=300: $commonStockRows\nردیف‌های دارای قیمت مثبت: $priceRows\nتکراری‌های حذف‌شده با شناسه یکسان: $duplicateCount\nردیف‌های نهایی معتبر سهام عادی: ${parsed.size}\n"
+                val parsedResult = TsetmcMarketWatchParser.parse(rows)
+                val parsed = parsedResult.rows
+                diagnostic += parsedResult.diagnostics
                 lastMarketErrorReport = diagnostic
-                require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود. خام: ${rows.length()}، شیء: $objectRows، نماددار: $symbolRows، دارای قیمت: $priceRows" }
+                require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود. ${parsedResult.diagnostics}" }
                 val shown = parsed.take(45)
                 val lines = shown.mapIndexed { index, item ->
-                    val symbol = item[0] as String
-                    val last = item[1] as Double
-                    val close = item[2] as? Double
-                    val change = item[3] as? Double
-                    val volume = item[4] as? Double
-                    val value = item[5] as? Double
-                    val trades = item.getOrNull(6) as? Double
-                    val instrumentId = item.getOrNull(7) as? String
+                    val symbol = item.symbol
+                    val last = item.last
+                    val close = item.close
+                    val change = item.changePercent
+                    val volume = item.volume
+                    val value = item.tradedValue
+                    val trades = item.tradeCount
                     val lowTradeWarning = trades != null && trades < 20.0
                     val changeText = change?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "درصد ناموجود"
                     // Keep quote data and activity metrics on separate lines. Long mixed
