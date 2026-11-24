@@ -20,7 +20,10 @@ data class CodalFinancialMetrics(
     val extractedRows: Int = 0
 ) {
     val hasMetrics: Boolean
-        get() = listOf(revenueGrowthPercent, netProfitGrowthPercent, returnOnEquityPercent, debtToEquity).any { it != null }
+        get() = listOf(
+            revenueGrowthPercent, netProfitGrowthPercent, returnOnEquityPercent, debtToEquity,
+            totalRevenue, netProfit, totalAssets, totalEquity, totalLiabilities
+        ).any { it != null }
 }
 
 object CodalFinancialParser {
