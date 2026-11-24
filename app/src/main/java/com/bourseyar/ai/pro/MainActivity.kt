@@ -253,6 +253,15 @@ class MainActivity : Activity() {
                     isSingleLine = true
                 }
                 body.addView(symbolInput)
+                val feeInput = EditText(this).apply {
+                    hint = "کارمزد رفت‌وبرگشت بک‌تست (واحد پایه؛ پیش‌فرض ۳۰)"
+                    setText("30")
+                    inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.LTGRAY)
+                    isSingleLine = true
+                }
+                body.addView(feeInput)
                 val resultText = label("برای دریافت تحلیل، نماد را وارد و دکمه را بزنید.", 13f, Color.WHITE)
                 body.addView(Button(this).apply {
                     text = "دریافت تاریخچه و تحلیل خودکار"
@@ -270,6 +279,20 @@ class MainActivity : Activity() {
                                 val history = TsetmcHistoryProvider.fetchDaily(symbol)
                                 val report = AnalysisEngine.analyze(history.candles)
                                     ?: error("برای محاسبه شاخص‌ها داده کافی نیست")
+                                val feeBps = feeInput.text.toString().toDoubleOrNull()
+                                    ?.takeIf { it.isFinite() && it >= 0.0 }
+                                    ?: error("کارمزد رفت‌وبرگشت باید عدد نامنفی باشد")
+                                val backtest = AnalysisEngine.backtest(history.candles, 70, feeBps)
+                                val backtestText = if (backtest.isEmpty() || backtest.all { it.trades == 0 }) {
+                                    "بک‌تست: داده کافی یا معامله واجد شرایط وجود ندارد؛ حداقل ۶۰ کندل معتبر لازم است."
+                                } else {
+                                    "بک‌تست walk-forward با حداقل امتیاز ۷۰/۱۰۰:\n" + backtest.joinToString("\n") { b ->
+                                        "${b.holdingDays} جلسه | ${b.trades} معامله | برد %.1f%% | میانگین بازده %.2f%% | ضریب سود %s | افت سرمایه %.2f%%".format(
+                                            java.util.Locale.US, b.winRatePercent, b.averageReturnPercent,
+                                            if (b.profitFactor.isFinite()) "%.2f".format(java.util.Locale.US, b.profitFactor) else "بدون زیان",
+                                            b.maxDrawdownPercent)
+                                    } + "\nکارمزد رفت‌وبرگشت: $feeBps واحد پایه؛ معاملات ممکن است هم‌پوشانی داشته باشند."
+                                }
                                 val volume = VolumeAnalysis.analyze(history.candles)
                                 val volumeText = volume?.let {
                                     "حجم آخرین کندل: %.0f سهم\nمیانگین حجم تا ۲۰ جلسه قبل: %.0f سهم\nحجم نسبی: %.2fx\nجلسات معتبر در میانگین: %d"
@@ -285,7 +308,7 @@ class MainActivity : Activity() {
                                     "ATR(14): ${report.atr?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\n" +
                                     "حمایت تقریبی ۲۰ جلسه: ${report.support?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n" +
                                     "مقاومت تقریبی ۲۰ جلسه: ${report.resistance?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n\n" +
-                                    volumeText + "\n\n" + report.notes.joinToString("\n") +
+                                    volumeText + "\n\n" + backtestText + "\n\n" + report.notes.joinToString("\n") +
                                     "\n\nتوجه: تاریخچه نمودار TSETMC با قیمت تعدیل‌شده دریافت می‌شود؛ قیمت فعلی تابلو ممکن است با قیمت تعدیل‌شده تاریخی متفاوت باشد. این خروجی توصیه خرید یا فروش نیست."
                                 history.symbol to details
                             }
@@ -300,6 +323,34 @@ class MainActivity : Activity() {
                     }
                 })
                 body.addView(resultText)
+                body.addView(Button(this).apply {
+                    text = "جستجوی اطلاعیه‌های کدال برای نماد"
+                    setOnClickListener {
+                        val symbol = symbolInput.text.toString().trim()
+                        if (symbol.isBlank()) {
+                            resultText.text = "ابتدا نماد را وارد کنید."
+                            return@setOnClickListener
+                        }
+                        isEnabled = false
+                        text = "در حال جستجو در کدال…"
+                        resultText.text = "در حال دریافت اطلاعیه‌های منتشرشده برای $symbol…"
+                        Thread {
+                            val result = runCatching { CodalPublicApi.searchFilings(symbol, 30) }
+                            runOnUiThread {
+                                isEnabled = true
+                                text = "جستجوی اطلاعیه‌های کدال برای نماد"
+                                val filing = result.getOrNull()
+                                resultText.text = if (filing != null) {
+                                    "نماد: ${filing.symbol}\nتعداد اطلاعیه‌های بازگشتی: ${filing.filingsFound}\n\n" +
+                                        filing.recentFilingTitles.mapIndexed { index, title -> "${index + 1}. $title" }.joinToString("\n").ifBlank { "عنوان اطلاعیه‌ای از پاسخ کدال استخراج نشد." } +
+                                        "\n\nاین بخش فقط عنوان اطلاعیه‌ها را جستجو می‌کند؛ هنوز صورت‌های مالی و نسبت‌های بنیادی از متن گزارش‌ها استخراج نشده‌اند."
+                                } else {
+                                    "جستجوی کدال ناموفق بود: ${result.exceptionOrNull()?.message ?: "خطای نامشخص"}"
+                                }
+                            }
+                        }.start()
+                    }
+                })
                 card("محدودیت داده و تفسیر", "تاریخچه OHLCV از endpoint عمومی و غیررسمی TSETMC دریافت می‌شود و ممکن است محدود یا قطع شود. داده نمودار تعدیل‌شده است؛ برای مقایسه قیمت با تابلو باید این تفاوت لحاظ شود. امتیاز الگوریتمی تضمین بازده نیست.")
             }
             "اسکنر" -> {
