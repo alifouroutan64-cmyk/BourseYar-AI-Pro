@@ -219,6 +219,7 @@ object TsetmcHistoryProvider {
     /** One-symbol live dashboard: quote, five-level book, recent trades and client flow. */
     fun fetchLiveSnapshot(symbol: String): InstrumentLiveSnapshot {
         val code = resolveInstrumentCode(symbol)
+            ?: error("نماد دقیق «$symbol» پیدا نشد")
 
         val quoteRoot = JSONObject(get("$BASE/ClosingPrice/GetClosingPriceInfo/$code"))
         val quote = quoteRoot.optJSONObject("closingPriceInfo")
