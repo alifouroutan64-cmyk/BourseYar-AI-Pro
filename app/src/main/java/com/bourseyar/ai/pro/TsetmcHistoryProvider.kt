@@ -2,8 +2,6 @@ package com.bourseyar.ai.pro
 
 import org.json.JSONObject
 import org.json.JSONArray
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 import java.text.ParsePosition
 import java.text.SimpleDateFormat
@@ -48,23 +46,7 @@ object TsetmcHistoryProvider {
     private const val BASE = "https://cdn.tsetmc.com/api"
     private const val CHART = "https://members.tsetmc.com/tsev2/chart/data/Financial.aspx"
 
-    private fun get(url: String): String {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 12000
-            readTimeout = 20000
-            requestMethod = "GET"
-            setRequestProperty("User-Agent", "Mozilla/5.0 BourseYarAIPro")
-            setRequestProperty("Accept", "application/json,text/plain,*/*")
-        }
-        try {
-            val code = connection.responseCode
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            require(code in 200..299) { "TSETMC پاسخ HTTP $code برگرداند" }
-            require(body.isNotBlank()) { "پاسخ خالی از TSETMC" }
-            return body
-        } finally { connection.disconnect() }
-    }
+    private fun get(url: String): String = TsetmcHttpClient.get(url)
 
     private fun validChartDate(value: String): Boolean {
         if (!value.matches(Regex("\\d{8}"))) return false
