@@ -1,5 +1,7 @@
 package com.bourseyar.ai.pro
 
+import java.net.URL
+
 
 /**
  * Free public market-data integrations for BourseYar.
