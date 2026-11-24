@@ -819,13 +819,15 @@ class MainActivity : Activity() {
                     val instrumentId = item.getOrNull(7) as? String
                     val lowTradeWarning = trades != null && trades < 20.0
                     val changeText = change?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "درصد ناموجود"
-                    (index + 1).toString() + ". " + symbol + " | آخرین: " +
-                        "%.0f".format(java.util.Locale.US, last) +
+                    // Keep quote data and activity metrics on separate lines. Long mixed
+                    // Persian/Latin strings wrap in Android TextView with confusing bidi order.
+                    (index + 1).toString() + ". " + symbol +
+                        " | آخرین: " + "%.0f".format(java.util.Locale.US, last) +
                         " | پایانی: " + (close?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                        " | تغییر: " + changeText +
-                        " | حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                         " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                        " | تعداد معامله: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
+                        " | تغییر: " + changeText + "\n" +
+                        "حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
+                        " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
+                        " | تعداد معاملات: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
                         (if (lowTradeWarning) " | هشدار: معاملات بسیار کم" else "")
                 }
                 rendered = "تعداد ردیف معتبر: " + parsed.size + " | نمایش: " + shown.size + "\n\n" + lines.joinToString("\n")
