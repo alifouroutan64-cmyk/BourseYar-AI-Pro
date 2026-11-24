@@ -945,18 +945,10 @@ class MainActivity : Activity() {
             var rendered = ""
             var diagnostic = "گزارش خطای دریافت بازار\n"
             try {
-                val http = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10000
-                    readTimeout = 15000
-                    requestMethod = "GET"
-                    setRequestProperty("User-Agent", "Mozilla/5.0 BourseYarAIPro/0.3")
-                    setRequestProperty("Accept", "application/json")
-                }
-                val code = try { http.responseCode } catch (e: Exception) { http.disconnect(); throw e }
-                val contentType = http.contentType ?: "نامشخص"
-                val stream = if (code in 200..299) http.inputStream else http.errorStream
-                val raw = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-                http.disconnect()
+                val snapshot = MarketWatchDataSource.fetch(endpoint)
+                val code = snapshot.statusCode
+                val contentType = snapshot.contentType
+                val raw = snapshot.body
                 diagnostic += "نشانی: $endpoint\nHTTP: $code\nنوع محتوا: $contentType\nحجم پاسخ: ${raw.length} نویسه\n"
                 require(code in 200..299) { "TSETMC پاسخ HTTP " + code + " برگرداند" }
                 val root = JSONObject(raw)
