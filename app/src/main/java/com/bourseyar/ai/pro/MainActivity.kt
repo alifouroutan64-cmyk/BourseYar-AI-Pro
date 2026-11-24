@@ -349,7 +349,7 @@ class MainActivity : Activity() {
                                     if (filing.recentFilings.isNotEmpty()) {
                                         filing.recentFilings.forEachIndexed { index, item ->
                                             val start = content.length
-                                            content.append("${index + 1}. ${item.title}")
+                                            content.append("${index + 1}. [${item.category}] ${item.title}")
                                             item.publishDate?.let { content.append(" | $it") }
                                             item.url?.let { url ->
                                                 content.setSpan(
