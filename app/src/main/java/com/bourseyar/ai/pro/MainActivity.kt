@@ -440,8 +440,7 @@ class MainActivity : Activity() {
                                     }
                                     val ranked = histories.mapNotNull { data ->
                                         val candidate = AnalysisEngine.scanCandles(data.symbol, data.candles, minAvgVol) ?: return@mapNotNull null
-                                        val avgVol = data.candles.dropLast(1).takeLast(20).map { it.volume }.average()
-                                        val relativeVolume = if (avgVol > 0.0) data.candles.last().volume / avgVol else null
+                                        val relativeVolume = VolumeAnalysis.analyze(data.candles)?.relativeVolume
                                         val stop = candidate.report.last * (1.0 - candidate.riskPercent / 100.0)
                                         val risk = candidate.report.last - stop
                                         val rr = if (risk > 0.0) (candidate.target1 - candidate.report.last) / risk else null
@@ -517,9 +516,7 @@ class MainActivity : Activity() {
                                     }.toMap()
                                     val results = series.mapNotNull { data ->
                                         val candidate = AnalysisEngine.scanCandles(data.symbol, data.candles, minAvgVol) ?: return@mapNotNull null
-                                        val previousVolumes = data.candles.dropLast(1).takeLast(20).map { it.volume }
-                                        val averageVolume = previousVolumes.average()
-                                        val relativeVolume = if (averageVolume > 0.0) data.candles.last().volume / averageVolume else null
+                                        val relativeVolume = VolumeAnalysis.analyze(data.candles)?.relativeVolume
                                         val flowScore = flowScores[data.symbol]
                                         val stopPrice = candidate.report.last * (1.0 - candidate.riskPercent / 100.0)
                                         val riskAmount = candidate.report.last - stopPrice
