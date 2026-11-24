@@ -17,6 +17,15 @@ class AnalysisEngineTest {
     }
 
     @Test
+    fun backtestDoesNotOverlapPositionsWithinEachHorizon() {
+        val results = AnalysisEngine.backtest(flatCandles(90), minScore = 0)
+        val expectedTrades = mapOf(2 to 20, 3 to 14, 4 to 10, 5 to 8, 6 to 7, 7 to 6)
+        results.forEach { result ->
+            assertEquals(expectedTrades[result.holdingDays], result.trades)
+        }
+    }
+
+    @Test
     fun roundTripFeeReducesAverageReturn() {
         val noFee = AnalysisEngine.backtest(flatCandles(), minScore = 0, feeBpsRoundTrip = 0.0)
         val withFee = AnalysisEngine.backtest(flatCandles(), minScore = 0, feeBpsRoundTrip = 100.0)
