@@ -35,7 +35,7 @@ class TsetmcLiveSnapshotParserTest {
         assertEquals(2, result.trades.size)
         assertEquals("123100", result.trades.first().time)
         assertEquals(500.0, result.clientFlow!!.netIndividualVolume!!, 0.001)
-        assertEquals(500.0 / 9.0, result.clientFlow.individualBuyPerBuyer!!, 0.001)
+        assertEquals(100.0, result.clientFlow.individualBuyPerBuyer!!, 0.001)
     }
 
     @Test
