@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -14,9 +16,11 @@ import java.net.URL
 import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
-    private val bg = Color.rgb(13, 24, 38)
-    private val panel = Color.rgb(24, 40, 58)
-    private val accent = Color.rgb(255, 202, 92)
+    private val bg = Color.rgb(7, 16, 31)
+    private val panel = Color.rgb(17, 32, 53)
+    private val accent = Color.rgb(53, 211, 190)
+    private val muted = Color.rgb(157, 178, 201)
+    private val borderColor = Color.rgb(39, 62, 87)
     private lateinit var body: LinearLayout
     private lateinit var status: TextView
     private val prefs by lazy { getSharedPreferences("bourseyar", MODE_PRIVATE) }
@@ -37,39 +41,130 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = bg; window.navigationBarColor = bg
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(18, 20, 18, 12); setBackgroundColor(bg) }
-        val title = label("بورس‌یار AI Pro", 25f, Color.WHITE, true)
-        title.gravity = Gravity.CENTER
-        status = label("نسخه توسعه‌ای | داده بازار هنوز اعتبارسنجی نشده", 12f, accent)
-        status.gravity = Gravity.CENTER
+        window.statusBarColor = bg
+        window.navigationBarColor = bg
+        window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
+        window.statusBarColor = Color.rgb(5, 12, 24)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 14, 16, 8)
+            background = rounded(intArrayOf(Color.rgb(8, 19, 36), bg), 0, 0, 0, 0)
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 14, 16, 12)
+            background = rounded(intArrayOf(Color.rgb(23, 53, 75), Color.rgb(13, 34, 55)), 22)
+            elevation = 5f
+        }
+        val brandRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val mark = label("◈", 30f, accent, true).apply { gravity = Gravity.CENTER; setPadding(0, 0, 12, 0) }
+        val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        brand.addView(label("بورس‌یار", 23f, Color.WHITE, true).apply { setPadding(0, 0, 0, 0) })
+        brand.addView(label("AI PRO  •  SMART MARKET", 10f, muted, true).apply { setPadding(0, 2, 0, 0) })
+        brandRow.addView(mark)
+        brandRow.addView(brand)
+        header.addView(brandRow)
+        status = label("●  اتصال و داده بازار در حال بررسی", 11f, accent, true).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 12, 0, 0)
+        }
+        header.addView(status)
+        val navScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setPadding(0, 12, 0, 10)
+        }
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         listOf("بازار", "تابلو", "تحلیل", "اسکنر", "سبد", "راهنما").forEach { name ->
-            nav.addView(Button(this).apply { text = name; textSize = 11f; setOnClickListener {
-                if (name == "سبد") startActivity(android.content.Intent(this@MainActivity, PortfolioActivity::class.java)) else show(name)
-            } }, LinearLayout.LayoutParams(0, -2, 1f))
+            val item = Button(this).apply {
+                text = name
+                textSize = 12f
+                minWidth = 0
+                setPadding(13, 4, 13, 4)
+                setOnClickListener {
+                    if (name == "سبد") startActivity(android.content.Intent(this@MainActivity, PortfolioActivity::class.java)) else show(name)
+                }
+            }
+            nav.addView(item, LinearLayout.LayoutParams(-2, 46).apply { setMargins(3, 0, 3, 0) })
         }
-        body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        navScroll.addView(nav)
+        body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 4, 0, 18) }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
-            isVerticalScrollBarEnabled = true
+            isVerticalScrollBarEnabled = false
             isSmoothScrollingEnabled = true
+            clipToPadding = false
             addView(body)
         }
-        root.addView(title); root.addView(status); root.addView(nav)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        header.addView(navScroll)
+        root.addView(header)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 12 })
         setContentView(root)
         show("بازار")
+        styleTree(root)
     }
 
+    private fun rounded(colors: IntArray, radiusDp: Int, strokeDp: Int = 0, strokeColor: Int = borderColor, topLeft: Int = radiusDp): GradientDrawable =
+        GradientDrawable(GradientDrawable.Orientation.TL_BR, colors).apply {
+            cornerRadius = radiusDp * resources.displayMetrics.density
+            if (strokeDp > 0) setStroke((strokeDp * resources.displayMetrics.density).toInt(), strokeColor)
+        }
+
     private fun label(value: String, size: Float, color: Int, bold: Boolean = false) =
-        TextView(this).apply { text = value; textSize = size; setTextColor(color); if (bold) setTypeface(null, 1); setPadding(8, 8, 8, 8) }
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+            typeface = if (bold) Typeface.create("sans-serif-medium", Typeface.NORMAL) else Typeface.create("sans-serif", Typeface.NORMAL)
+            setPadding(8, 8, 8, 8)
+            gravity = Gravity.CENTER_VERTICAL
+            setTextIsSelectable(true)
+        }
+
+    private fun styleTree(view: View) {
+        when (view) {
+            is Button -> {
+                view.isAllCaps = false
+                view.textSize = 12f
+                view.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                view.setTextColor(Color.WHITE)
+                view.background = rounded(intArrayOf(Color.rgb(27, 91, 112), Color.rgb(18, 64, 87)), 14, 1, Color.rgb(48, 123, 139))
+                view.elevation = 2f
+                view.minimumHeight = (44 * resources.displayMetrics.density).toInt()
+                view.setPadding(12, 6, 12, 6)
+            }
+            is EditText -> {
+                view.textSize = 14f
+                view.setTextColor(Color.WHITE)
+                view.setHintTextColor(muted)
+                view.background = rounded(intArrayOf(Color.rgb(13, 27, 45), Color.rgb(13, 27, 45)), 13, 1)
+                view.setPadding(14, 12, 14, 12)
+            }
+            is TextView -> {
+                view.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                view.setTextColor(if (view.currentTextColor == Color.LTGRAY) muted else view.currentTextColor)
+                view.setLineSpacing(2f, 1.06f)
+            }
+            is LinearLayout -> {
+                if (view.childCount == 2 && view.getChildAt(0) is TextView && view.getChildAt(1) is TextView) {
+                    view.background = rounded(intArrayOf(Color.rgb(21, 39, 61), Color.rgb(15, 30, 49)), 18, 1)
+                    view.setPadding(13, 12, 13, 12)
+                    view.elevation = 2f
+                }
+            }
+        }
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) styleTree(view.getChildAt(i))
+        }
+    }
 
     private fun card(title: String, text: String) {
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12, 10, 12, 10); setBackgroundColor(panel) }
-        box.addView(label(title, 17f, accent, true))
-        box.addView(label(text, 14f, Color.WHITE))
-        val lp = LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 8, 0, 8); body.addView(box, lp)
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12, 10, 12, 10) }
+        box.addView(label(title, 16f, accent, true))
+        box.addView(label(text, 13.5f, Color.rgb(224, 234, 245)))
+        val lp = LinearLayout.LayoutParams(-1, -2)
+        lp.setMargins(0, 6, 0, 8)
+        body.addView(box, lp)
+        styleTree(box)
     }
 
     override fun onStart() {
@@ -776,6 +871,7 @@ class MainActivity : Activity() {
                 card("محدودیت", "این بیلد نسخه کامل نهایی نیست. اتصال تاریخچه TSETMC از API عمومی و غیررسمی استفاده می‌کند و هنوز تست میدانی/پایداری آن تأیید نشده است. هیچ داده بنیادی یا سیگنال زنده‌ای جعل نمی‌شود.")
             }
         }
+        styleTree(body)
     }
 
     private fun firstNumber(row: JSONObject, vararg keys: String): Double? {
