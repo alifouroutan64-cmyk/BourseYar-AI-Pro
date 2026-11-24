@@ -15,8 +15,26 @@ import java.net.URLEncoder
 data class CodalFilingReference(
     val title: String,
     val publishDate: String?,
-    val url: String?
+    val url: String?,
+    val category: String = classifyCodalFiling(title)
 )
+
+/** Title-only filing classification. It labels the notice; it does not infer financial values. */
+internal fun classifyCodalFiling(title: String): String {
+    val normalized = title.trim().replace("ي", "ی").replace("ك", "ک")
+    fun hasAny(vararg terms: String) = terms.any { normalized.contains(it, ignoreCase = true) }
+    return when {
+        hasAny("صورت‌های مالی", "صورتهای مالی", "صورت مالی", "اظهارنظر حسابرس", "گزارش حسابرس") -> "صورت‌های مالی"
+        hasAny("گزارش تفسیری مدیریت", "تفسیر مدیریت") -> "گزارش تفسیری مدیریت"
+        hasAny("افزایش سرمایه", "پیشنهاد هیئت‌مدیره در خصوص افزایش") -> "افزایش سرمایه"
+        hasAny("مجمع عمومی", "آگهی دعوت به مجمع", "تصمیمات مجمع") -> "مجمع"
+        hasAny("پرداخت سود", "زمان‌بندی پرداخت سود", "سود سهام") -> "پرداخت سود سهام"
+        hasAny("شفاف‌سازی", "شفاف سازی", "افشای اطلاعات بااهمیت", "اطلاعات بااهمیت") -> "افشای اطلاعات بااهمیت"
+        hasAny("فعالیت ماهانه", "گزارش تولید و فروش", "تولید و فروش") -> "گزارش فعالیت ماهانه"
+        hasAny("قرارداد", "مناقصه", "مزایده") -> "قرارداد / مناقصه"
+        else -> "سایر اطلاعیه‌ها"
+    }
+}
 
 data class FundamentalSnapshot(
     val symbol: String,
