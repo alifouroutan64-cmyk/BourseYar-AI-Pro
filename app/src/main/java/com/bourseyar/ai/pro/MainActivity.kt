@@ -236,23 +236,8 @@ class MainActivity : Activity() {
                         dashboardResultsText.text = "دریافت تابلو ناموفق بود:\n${result.exceptionOrNull()?.message ?: "خطای نامشخص"}\n\nداده قبلی به‌عنوان زنده نمایش داده نمی‌شود."
                         status.text = "خطا در دریافت تابلو نماد"
                     } else {
-                        val q = snapshot.quote
                         val stamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-                        val quoteText = "نماد: ${snapshot.symbol} | وضعیت: ${q.state ?: "نامشخص"}\n" +
-                            "آخرین معامله: ${q.last?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | پایانی: ${q.close?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n" +
-                            "تغییر: ${q.changePercent?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "—"} | حجم: ${q.volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | تعداد معاملات: ${q.tradeCount?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}"
-                        val bookText = snapshot.orderBook.joinToString("\n") { level ->
-                            "سطح ${level.level} | خرید: ${level.bidPrice?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} / حجم ${level.bidVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} / سفارش ${level.bidCount?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}" +
-                                "   || فروش: ${level.askPrice?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} / حجم ${level.askVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} / سفارش ${level.askCount?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}"
-                        }.ifBlank { "دفتر سفارش خالی است یا بازار در حال معامله نیست." }
-                        val tradesText = snapshot.trades.joinToString("\n") { trade ->
-                            "${trade.time} | قیمت ${trade.price?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | حجم ${trade.volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | تعداد ${trade.count?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}"
-                        }.ifBlank { "معامله‌ای در پاسخ اخیر موجود نیست." }
-                        val flow = snapshot.clientFlow
-                        val flowText = if (flow == null) "اطلاعات جریان حقیقی/حقوقی موجود نیست."
-                            else "خالص حجم حقیقی: ${flow.netIndividualVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | خالص حجم حقوقی: ${flow.netLegalVolume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n" +
-                                "سرانه خرید حقیقی: ${flow.individualBuyPerBuyer?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"} | سرانه فروش حقیقی: ${flow.individualSellPerSeller?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}"
-                        dashboardResultsText.text = "آخرین دریافت موفق برنامه: $stamp\n\n$quoteText\n\nدفتر سفارش پنج‌سطحی\n$bookText\n\n۲۰ معامله اخیر\n$tradesText\n\nجریان حقیقی/حقوقی\n$flowText"
+                        dashboardResultsText.text = MarketDashboardFormatter.format(snapshot, stamp)
                         status.text = "تابلو $symbol دریافت شد | زمان دریافت $stamp"
                     }
                 }
