@@ -3,6 +3,11 @@ package com.bourseyar.ai.pro
 import android.app.Activity
 import android.app.AlertDialog
 import android.os.Bundle
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
+import android.view.View
 import android.text.InputType
 import android.widget.*
 import org.json.JSONArray
@@ -36,7 +41,7 @@ data class PortfolioHolding(val symbol:String,val shares:Long,val buyPrice:Long,
 }
 class PortfolioActivity:Activity() {
     private val prefs by lazy { getSharedPreferences("bourseyar_portfolio_v1",MODE_PRIVATE) }
-    private val bg=0xFF0D1826.toInt(); private val panel=0xFF18283A.toInt()
+    private val bg=0xFF07101F.toInt(); private val panel=0xFF152941.toInt()
     private val green=0xFF43D391.toInt(); private val red=0xFFFF6975.toInt(); private val amber=0xFFFFC857.toInt()
     private fun load():List<PortfolioHolding> = try {
         val a=JSONArray(prefs.getString("list","[]"))
@@ -51,26 +56,66 @@ class PortfolioActivity:Activity() {
     override fun onCreate(savedInstanceState:Bundle?) { super.onCreate(savedInstanceState); render() }
     private fun fmt(n:Long)=NumberFormat.getNumberInstance(Locale("fa","IR")).format(n)
     private fun percent(n:Double)=String.format(Locale("fa","IR"),"%.2f%%",n)
+    private fun shape(colors:IntArray,radius:Int,stroke:Int=0):GradientDrawable =
+        GradientDrawable(GradientDrawable.Orientation.TL_BR,colors).apply {
+            cornerRadius=radius*resources.displayMetrics.density
+            if(stroke>0)setStroke((stroke*resources.displayMetrics.density).toInt(),0xFF294764.toInt())
+        }
     private fun text(s:String,size:Float=14f,color:Int=0xFFFFFFFF.toInt(),bold:Boolean=false)=TextView(this).apply {
-        text=s; textSize=size; setTextColor(color); if(bold)setTypeface(null,1); setPadding(6,8,6,8)
+        text=s; textSize=size; setTextColor(color)
+        typeface=Typeface.create(if(bold)"sans-serif-medium" else "sans-serif",Typeface.NORMAL)
+        setPadding(7,8,7,8); gravity=Gravity.CENTER_VERTICAL; setLineSpacing(2f,1.05f); setTextIsSelectable(true)
+    }
+    private fun polish(view:View) {
+        when(view) {
+            is Button -> {
+                view.isAllCaps=false; view.textSize=12f; view.typeface=Typeface.create("sans-serif-medium",0)
+                view.setTextColor(0xFFF3FAFF.toInt())
+                view.background=shape(intArrayOf(0xFF1B5B70.toInt(),0xFF124057.toInt()),14,1)
+                view.minimumHeight=(46*resources.displayMetrics.density).toInt()
+                view.setPadding(12,6,12,6); view.elevation=2f
+            }
+            is EditText -> {
+                view.textSize=14f; view.setTextColor(0xFFFFFFFF.toInt()); view.setHintTextColor(0xFF9DB2C9.toInt())
+                view.background=shape(intArrayOf(0xFF0D1B2D.toInt(),0xFF0D1B2D.toInt()),13,1)
+                view.setPadding(14,12,14,12)
+            }
+            is LinearLayout -> if(view.childCount>=2 && view.getChildAt(0) is TextView) {
+                view.background=shape(intArrayOf(0xFF152941.toInt(),0xFF0F1E31.toInt()),18,1)
+                view.setPadding(13,12,13,12); view.elevation=2f
+            }
+        }
+        if(view is android.view.ViewGroup) for(i in 0 until view.childCount) polish(view.getChildAt(i))
     }
     private fun render() {
         val data=load(); val total=data.fold(0L){sum,h->safeAdd(sum,h.value)}; val cost=data.fold(0L){sum,h->safeAdd(sum,h.cost)}; val pnl=safeSubtract(total,cost)
-        val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(16,18,16,12);setBackgroundColor(bg)}
-        root.addView(text("سبد سهام من",24f,0xFFFFFFFF.toInt(),true))
-        root.addView(text("ارزش روز: "+fmt(total)+" ریال",19f,0xFFFFFFFF.toInt(),true))
-        root.addView(text("سرمایه اولیه: "+fmt(cost)+" ریال",14f,0xFFBFCBDA.toInt()))
-        root.addView(text("سود/زیان: "+fmt(pnl)+" ریال | "+percent(if(cost>0)pnl.toDouble()*100/cost else 0.0),16f,if(pnl>=0)green else red,true))
-        root.addView(Button(this).apply{ text="افزودن سهم";setOnClickListener{form(null)} })
-        root.addView(Button(this).apply{ text="دفتر معاملات خرید و فروش";setOnClickListener{showLedger()} })
-        root.addView(Button(this).apply{ text="پیشنهادهای اسکن جامع بورس‌یار";setOnClickListener{showScannerRecommendations()} })
-        root.addView(Button(this).apply{ text="به‌روزرسانی قیمت‌ها از TSETMC";setOnClickListener{refreshPrices()} })
-        root.addView(text("تعداد سهام ثبت‌شده: "+data.size,13f,0xFFBFCBDA.toInt()))
+        window.statusBarColor=0xFF050C18.toInt(); window.navigationBarColor=0xFF050C18.toInt()
+        window.decorView.layoutDirection=View.LAYOUT_DIRECTION_RTL
+        val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(16,16,16,10);background=shape(intArrayOf(0xFF081324.toInt(),bg),0)}
+        val hero=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(18,16,18,16);background=shape(intArrayOf(0xFF173B55.toInt(),0xFF10263F.toInt()),22);elevation=5f}
+        hero.addView(text("◈  سبد سرمایه‌گذاری من",22f,0xFFFFFFFF.toInt(),true))
+        hero.addView(text("ارزش روز دارایی‌ها",12f,0xFFB8CDDF.toInt()))
+        hero.addView(text(fmt(total)+" ریال",25f,0xFFFFFFFF.toInt(),true))
+        hero.addView(text("سرمایه اولیه  "+fmt(cost)+" ریال",12f,0xFFB8CDDF.toInt()))
+        hero.addView(text("سود/زیان  "+fmt(pnl)+" ریال  •  "+percent(if(cost>0)pnl.toDouble()*100/cost else 0.0),15f,if(pnl>=0)green else red,true))
+        root.addView(hero)
+        val actions=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(0,10,0,8)}
+        listOf(
+            "＋  افزودن سهم" to { form(null) },
+            "▤  دفتر معاملات خرید و فروش" to { showLedger() },
+            "✦  پیشنهادهای اسکن جامع بورس‌یار" to { showScannerRecommendations() },
+            "↻  به‌روزرسانی قیمت‌ها از TSETMC" to { refreshPrices() }
+        ).forEach { (caption,action) ->
+            actions.addView(Button(this).apply{text=caption;setOnClickListener{action()}},LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=6})
+        }
+        root.addView(actions)
+        root.addView(text("دارایی‌های ثبت‌شده  •  "+data.size+" نماد",14f,0xFF9DB2C9.toInt(),true))
         val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
-        val scroll=ScrollView(this).apply{addView(list)}
+        val scroll=ScrollView(this).apply{isFillViewport=false;isVerticalScrollBarEnabled=false;addView(list)}
         root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
         data.forEach { h -> list.addView(card(h)) }
         setContentView(root)
+        polish(root)
     }
 
     private fun loadTransactions(): List<LedgerTransaction> = try {
@@ -270,7 +315,7 @@ class PortfolioActivity:Activity() {
 
     private fun card(h:PortfolioHolding):LinearLayout {
         val d=decision(h)
-        val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(12,12,12,12);setBackgroundColor(panel)}
+        val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(12,12,12,12)}
         box.addView(text(h.symbol,20f,0xFFFFFFFF.toInt(),true))
         box.addView(text("تعداد: "+fmt(h.shares)+" | خرید: "+fmt(h.buyPrice)+" | قیمت فعلی: "+fmt(h.currentPrice),13f))
         box.addView(text("ارزش: "+fmt(h.value)+" ریال",14f))
