@@ -52,8 +52,19 @@ object CodalPublicApi {
     private const val BASE = "https://search.codal.ir/api/search/v2/q"
 
     private class CodalHttpException(val statusCode: Int) : IOException("کدال HTTP $statusCode")
+    private val requestLock = Any()
+    @Volatile private var lastRequestAtMillis = 0L
+
+    private fun waitForRequestSlot() {
+        synchronized(requestLock) {
+            val waitMillis = 2_000L - (System.currentTimeMillis() - lastRequestAtMillis)
+            if (waitMillis > 0) Thread.sleep(waitMillis)
+            lastRequestAtMillis = System.currentTimeMillis()
+        }
+    }
 
     private fun request(url: String): String {
+        waitForRequestSlot()
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
             readTimeout = 15_000
