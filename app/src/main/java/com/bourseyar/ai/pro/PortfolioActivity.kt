@@ -113,14 +113,36 @@ class PortfolioActivity:Activity() {
         val lines = result.positions.joinToString("\n") {
             "${it.symbol} | موجودی: ${fmt(it.quantity)} | میانگین بهای تمام‌شده: ${fmt(it.averageCostPerShare)} ریال | بهای مانده: ${fmt(it.remainingCost)} ریال"
         }
+        val recent = transactions.sortedByDescending { it.timestamp }.take(10).joinToString("\n") {
+            val side = if (it.side == TransactionSide.BUY) "خرید" else "فروش"
+            "$side ${it.symbol} | ${fmt(it.quantity)} سهم | قیمت ${fmt(it.unitPrice)} | کارمزد ${fmt(it.fee)}"
+        }
         val message = "این دفتر مستقل از ثبت دستی قدیمی سبد است.\n" +
             "تعداد معاملات ثبت‌شده: ${transactions.size}\nسود/زیان تحقق‌یافته: ${fmt(result.realizedProfitLoss)} ریال\n\nموجودی باز:\n" +
-            lines.ifBlank { "موجودی بازی ثبت نشده است." }
-        AlertDialog.Builder(this).setTitle("دفتر معاملات")
+            lines.ifBlank { "موجودی بازی ثبت نشده است." } +
+            "\n\nآخرین معاملات:\n" + recent.ifBlank { "هنوز معامله‌ای ثبت نشده است." }
+        val builder = AlertDialog.Builder(this).setTitle("دفتر معاملات")
             .setMessage(message)
             .setPositiveButton("ثبت معامله") { _, _ -> addLedgerTransaction() }
             .setNeutralButton("بستن", null)
-            .show()
+        if (transactions.isNotEmpty()) {
+            builder.setNegativeButton("حذف آخرین معامله") { _, _ ->
+                AlertDialog.Builder(this).setMessage("آخرین معامله ثبت‌شده حذف شود؟")
+                    .setNegativeButton("لغو", null)
+                    .setPositiveButton("حذف") { _, _ ->
+                        val latest = transactions.maxByOrNull { it.timestamp }
+                        if (latest != null) {
+                            val revised = transactions.toMutableList()
+                            revised.remove(latest)
+                            if (PortfolioLedger.calculate(revised) != null) {
+                                saveTransactions(revised)
+                                showLedger()
+                            } else Toast.makeText(this, "حذف باعث نامعتبر شدن دفتر می‌شود.", Toast.LENGTH_LONG).show()
+                        }
+                    }.show()
+            }
+        }
+        builder.show()
     }
 
     private fun addLedgerTransaction() {
