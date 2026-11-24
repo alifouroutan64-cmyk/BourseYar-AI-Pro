@@ -24,6 +24,10 @@ class AnalysisEngineTest {
         assertEquals(null, safeCodalUrl("http://www.codal.ir/report"))
         assertEquals(null, safeCodalUrl("https://codal.ir.example.com/report"))
         assertEquals(null, safeCodalUrl("https://example.com/report"))
+        assertEquals(null, safeCodalUrl("https://codal.ir:8443/report"))
+        assertEquals(null, safeCodalUrl("https://user@codal.ir/report"))
+        assertEquals(null, safeCodalUrl("https://codal.ir.evil.example/report"))
+        assertEquals("https://SUB.CODAL.IR/report", safeCodalUrl("https://SUB.CODAL.IR/report"))
     }
 
     private fun flatCandles(size: Int = 90) = List(size) {
