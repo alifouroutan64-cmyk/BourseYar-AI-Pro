@@ -244,28 +244,64 @@ class MainActivity : Activity() {
                 startDashboardPolling()
             }
             "تحلیل" -> {
-                card("تحلیل تکنیکال", "محاسبه‌گر RSI(14)، EMA20/50، MACD، ATR و حمایت/مقاومت برای سری کندل‌های معتبر در موتور تحلیل اضافه شده است. تا زمان اتصال منبع تاریخچه OHLC معتبر، تحلیل نماد واقعی ارائه نمی‌شود.")
-                val prices = EditText(this).apply { hint = "قیمت‌های پایانی با کاما جدا شوند؛ مثال: 100,102,101"; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY) }
-                val highs = EditText(this).apply { hint = "اختیاری: سقف‌ها با کاما"; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY) }
-                val lows = EditText(this).apply { hint = "اختیاری: کف‌ها با کاما"; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY) }
-                body.addView(prices); body.addView(highs); body.addView(lows)
+                card("تحلیل تکنیکال نماد", "نام نماد را وارد کنید تا تاریخچه روزانه OHLCV از TSETMC دریافت و شاخص‌ها به‌صورت خودکار محاسبه شوند. حداقل ۵۰ کندل معتبر لازم است.")
+                val symbolInput = EditText(this).apply {
+                    hint = "نماد؛ مثال: فولاد"
+                    setText("فولاد")
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.LTGRAY)
+                    isSingleLine = true
+                }
+                body.addView(symbolInput)
+                val resultText = label("برای دریافت تحلیل، نماد را وارد و دکمه را بزنید.", 13f, Color.WHITE)
                 body.addView(Button(this).apply {
-                    text = "محاسبه شاخص‌ها"
+                    text = "دریافت تاریخچه و تحلیل خودکار"
                     setOnClickListener {
-                        try {
-                            val close = prices.text.toString().split(",").map { it.trim().toDouble() }
-                            val hi = highs.text.toString().takeIf { it.isNotBlank() }?.split(",")?.map { it.trim().toDouble() }
-                            val lo = lows.text.toString().takeIf { it.isNotBlank() }?.split(",")?.map { it.trim().toDouble() }
-                            require(close.size >= 20) { "حداقل ۲۰ قیمت پایانی وارد کنید" }
-                            require(hi == null || hi.size == close.size) { "تعداد سقف‌ها باید با قیمت‌ها برابر باشد" }
-                            require(lo == null || lo.size == close.size) { "تعداد کف‌ها باید با قیمت‌ها برابر باشد" }
-                            val candles = close.indices.map { i -> Candle(close[i], hi?.get(i) ?: close[i], lo?.get(i) ?: close[i]) }
-                            val r = AnalysisEngine.analyze(candles) ?: error("داده کافی نیست")
-                            card("نتیجه محاسبه (داده ورودی شما)", "آخرین قیمت: ${r.last}\nروند: ${r.trend}\nامتیاز قواعدی: ${r.score}/100\nRSI: ${r.rsi ?: "—"}\nEMA20: ${r.ema20 ?: "—"}\nEMA50: ${r.ema50 ?: "—"}\nMACD: ${r.macd ?: "—"}\nATR: ${r.atr ?: "—"}\nحمایت تقریبی: ${r.support}\nمقاومت تقریبی: ${r.resistance}\n\n" + r.notes.joinToString("\n"))
-                        } catch (e: Exception) { card("ورودی نامعتبر", e.message ?: "قیمت‌ها را بررسی کنید") }
+                        val symbol = symbolInput.text.toString().trim()
+                        if (symbol.isBlank()) {
+                            resultText.text = "ابتدا نام نماد را وارد کنید."
+                            return@setOnClickListener
+                        }
+                        isEnabled = false
+                        text = "در حال دریافت تاریخچه…"
+                        resultText.text = "در حال دریافت کندل‌های روزانه $symbol از TSETMC…"
+                        Thread {
+                            val result = runCatching {
+                                val history = TsetmcHistoryProvider.fetchDaily(symbol)
+                                val report = AnalysisEngine.analyze(history.candles)
+                                    ?: error("برای محاسبه شاخص‌ها داده کافی نیست")
+                                val volume = VolumeAnalysis.analyze(history.candles)
+                                val lastCandle = history.candles.last()
+                                val volumeText = volume?.let {
+                                    "حجم آخرین کندل: %.0f سهم\\nمیانگین حجم تا ۲۰ جلسه قبل: %.0f سهم\\nحجم نسبی: %.2fx\\nجلسات معتبر در میانگین: %d"
+                                        .format(java.util.Locale.US, it.currentVolume, it.averagePriorVolume, it.relativeVolume, it.validPriorSessions)
+                                } ?: "تحلیل حجم: ناموجود؛ حداقل ۱۰ جلسه معتبر و حجم مثبت لازم است"
+                                val details = "نماد: ${history.symbol}\\nتعداد کندل معتبر: ${history.candles.size}\\n" +
+                                    "آخرین قیمت پایانی تعدیل‌شده: ${"%.0f".format(java.util.Locale.US, report.last)}\\n" +
+                                    "روند: ${report.trend} | امتیاز تکنیکال: ${report.score}/100\\n" +
+                                    "RSI(14): ${report.rsi?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
+                                    "EMA20: ${report.ema20?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
+                                    "EMA50: ${report.ema50?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
+                                    "MACD: ${report.macd?.let { "%.4f".format(java.util.Locale.US, it) } ?: "—"} | سیگنال: ${report.macdSignal?.let { "%.4f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
+                                    "ATR(14): ${report.atr?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
+                                    "حمایت تقریبی ۲۰ جلسه: ${report.support?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
+                                    "مقاومت تقریبی ۲۰ جلسه: ${report.resistance?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\\n\\n" +
+                                    volumeText + "\\n\\n" + report.notes.joinToString("\\n") +
+                                    "\\n\\nتوجه: تاریخچه نمودار TSETMC با قیمت تعدیل‌شده دریافت می‌شود؛ قیمت فعلی تابلو ممکن است با قیمت تعدیل‌شده تاریخی متفاوت باشد. این خروجی توصیه خرید یا فروش نیست."
+                                history.symbol to details
+                            }
+                            runOnUiThread {
+                                isEnabled = true
+                                text = "دریافت تاریخچه و تحلیل خودکار"
+                                resultText.text = result.getOrNull()?.second
+                                    ?: "تحلیل نماد انجام نشد: ${result.exceptionOrNull()?.message ?: "خطای نامشخص"}"
+                                status.text = if (result.isSuccess) "تحلیل تاریخی ${result.getOrNull()?.first} دریافت شد" else "دریافت تاریخچه تحلیل ناموفق"
+                            }
+                        }.start()
                     }
                 })
-                card("هشدار", "امتیاز الگوریتمی احتمال موفقیت را تضمین نمی‌کند و توصیه خرید/فروش نیست. برای سیگنال معتبر، تاریخچه تعدیل‌شده و داده حجم/معاملات لازم است.")
+                body.addView(resultText)
+                card("محدودیت داده و تفسیر", "تاریخچه OHLCV از endpoint عمومی و غیررسمی TSETMC دریافت می‌شود و ممکن است محدود یا قطع شود. داده نمودار تعدیل‌شده است؛ برای مقایسه قیمت با تابلو باید این تفاوت لحاظ شود. امتیاز الگوریتمی تضمین بازده نیست.")
             }
             "اسکنر" -> {
                 card("اسکنر تاریخی OHLCV", "CSV را با ستون‌های symbol,date,open,high,low,close,volume وارد کنید. تاریخ yyyy-MM-dd و حداقل ۵۰ کندل روزانه برای هر نماد لازم است. ردیف‌ها بر اساس تاریخ مرتب می‌شوند.")
