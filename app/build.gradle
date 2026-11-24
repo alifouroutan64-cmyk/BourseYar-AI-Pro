@@ -3,6 +3,12 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def releaseStoreFile = System.getenv('BOURSEYAR_STORE_FILE')
+def releaseStorePassword = System.getenv('BOURSEYAR_STORE_PASSWORD')
+def releaseKeyAlias = System.getenv('BOURSEYAR_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('BOURSEYAR_KEY_PASSWORD')
+def releaseSigningReady = [releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it != null && !it.trim().isEmpty() }
+
 android {
     namespace 'com.bourseyar.ai.pro'
     compileSdk 35
@@ -15,6 +21,26 @@ android {
         versionName '0.1.0'
     }
 
+    signingConfigs {
+        release {
+            if (releaseSigningReady) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -24,7 +50,6 @@ android {
         jvmTarget = '17'
     }
 }
-
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
