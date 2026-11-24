@@ -119,7 +119,7 @@ class PortfolioActivity:Activity() {
         }
         val message = "این دفتر مستقل از ثبت دستی قدیمی سبد است.\n" +
             "تعداد معاملات ثبت‌شده: ${transactions.size}\nسود/زیان تحقق‌یافته: ${fmt(result.realizedProfitLoss)} ریال\n\nموجودی باز:\n" +
-            lines.ifBlank { "موجودی بازی ثبت نشده است." } +
+            lines.ifBlank { "موجودی باز ثبت نشده است." } +
             "\n\nآخرین معاملات:\n" + recent.ifBlank { "هنوز معامله‌ای ثبت نشده است." }
         val builder = AlertDialog.Builder(this).setTitle("دفتر معاملات")
             .setMessage(message)
