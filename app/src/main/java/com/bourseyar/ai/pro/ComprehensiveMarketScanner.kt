@@ -98,15 +98,34 @@ data class ComprehensiveCandidate(
     }
 }
 
+data class MarketScanDiagnostics(
+    val requestedSymbols: Int,
+    val analyzedSymbols: Int,
+    val rejectedForInsufficientHistory: Int,
+    val failedSymbols: List<String>
+) {
+    val failedCount: Int get() = failedSymbols.size
+}
+
 /** Whole-market liquidity shortlist, then conservative multi-factor ranking. */
 object ComprehensiveMarketScanner {
+    @Volatile var lastDiagnostics: MarketScanDiagnostics = MarketScanDiagnostics(0, 0, 0, emptyList())
+        private set
     fun scan(limit: Int = 20, historyCount: Int = 10): List<ComprehensiveCandidate> {
         val leaders = TsetmcHistoryProvider.fetchMarketLeaders(limit.coerceIn(5, 100))
         val output = mutableListOf<ComprehensiveCandidate>()
-        leaders.take(historyCount.coerceIn(3, 20)).forEachIndexed { index, leader ->
+        var insufficientHistory = 0
+        val failures = mutableListOf<String>()
+        val selectedLeaders = leaders.take(historyCount.coerceIn(3, 20))
+        selectedLeaders.forEachIndexed { index, leader ->
             try {
                 val history = TsetmcHistoryProvider.fetchDaily(leader.symbol)
-                val technical = AnalysisEngine.scanCandles(leader.symbol, history.candles, 0.0) ?: return@forEachIndexed
+                val technical = AnalysisEngine.scanCandles(leader.symbol, history.candles, 0.0)
+                if (technical == null) {
+                    insufficientHistory++
+                    failures += "${leader.symbol}: تاریخچه معتبر یا حداقل داده لازم برای تحلیل موجود نیست"
+                    return@forEachIndexed
+                }
                 // Shared validated volume logic: 20 prior sessions, at least 10 valid.
                 val relativeVolume = VolumeAnalysis.analyze(history.candles)?.relativeVolume
                 val flow = runCatching { TsetmcHistoryProvider.fetchFiveSessionFlowScore(leader.symbol) }.getOrNull()
@@ -164,9 +183,19 @@ object ComprehensiveMarketScanner {
                 }
                 output += ComprehensiveCandidate(leader.symbol, last, technicalScore, flow, relativeVolume, fundamental, score,
                     technical.report, stop, target1, target2, reason, warnings)
-            } catch (_: Exception) { /* fail closed: invalid/missing symbol data is not ranked */ }
-            if (index < historyCount - 1) Thread.sleep(600)
+            } catch (e: Exception) {
+                // Fail closed, but retain a short diagnostic so skipped symbols are visible to the user.
+                val detail = e.message?.replace(Regex("\\s+"), " ")?.take(180) ?: e.javaClass.simpleName
+                failures += "${leader.symbol}: $detail"
+            }
+            if (index < selectedLeaders.lastIndex) Thread.sleep(600)
         }
+        lastDiagnostics = MarketScanDiagnostics(
+            requestedSymbols = selectedLeaders.size,
+            analyzedSymbols = output.size,
+            rejectedForInsufficientHistory = insufficientHistory,
+            failedSymbols = failures.take(10)
+        )
         return output.sortedWith(compareBy<ComprehensiveCandidate> { if (it.excludedReason == null) 0 else 1 }.thenByDescending { it.compositeScore })
     }
 }
