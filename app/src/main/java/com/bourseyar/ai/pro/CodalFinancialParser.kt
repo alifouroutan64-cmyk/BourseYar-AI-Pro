@@ -116,7 +116,7 @@ object CodalFinancialParser {
         return rows.firstOrNull { row ->
             val candidate = normalizeLabel(row.label)
             candidate.isNotBlank() && normalizedLabels.any { expected ->
-                candidate == expected || candidate.startsWith(expected)
+                candidate == expected
             } && row.values.isNotEmpty()
         }?.let { row ->
             // The rightmost two numeric cells are the period values in Codal's
@@ -129,14 +129,14 @@ object CodalFinancialParser {
         if (values.size < 2) return null
         val current = values[0]
         val previous = values[1]
-        if (!current.isFinite() || !previous.isFinite() || previous == 0.0) return null
+        if (!current.isFinite() || !previous.isFinite() || previous <= 0.0) return null
         val change = (current - previous) / kotlin.math.abs(previous)
         if (!change.isFinite()) return null
         return change * 100.0
     }
 
     private fun ratioPercent(numerator: Double?, denominator: Double?): Double? {
-        if (numerator == null || denominator == null || denominator == 0.0) return null
+        if (numerator == null || denominator == null || denominator <= 0.0) return null
         return (numerator / denominator * 100.0).takeIf { it.isFinite() }
     }
 
