@@ -43,8 +43,27 @@ class CodalFinancialParserTest {
     fun doesNotInventGrowthWhenComparisonPeriodIsMissingOrZero() {
         val onePeriod = "<table><tr><td>درآمدهای عملیاتی</td><td>100</td></tr></table>"
         val zeroPrior = "<table><tr><td>درآمدهای عملیاتی</td><td>100</td><td>0</td></tr></table>"
+        val negativePrior = "<table><tr><td>سود (زیان) خالص</td><td>100</td><td>(50)</td></tr></table>"
         assertNull(CodalFinancialParser.parseHtml(onePeriod).revenueGrowthPercent)
         assertNull(CodalFinancialParser.parseHtml(zeroPrior).revenueGrowthPercent)
+        assertNull(CodalFinancialParser.parseHtml(negativePrior).netProfitGrowthPercent)
+    }
+
+    @Test
+    fun doesNotConfuseCurrentAssetsWithTotalAssets() {
+        val html = """
+            <table>
+              <tr><td>جمع دارایی‌های جاری</td><td>900</td></tr>
+              <tr><td>جمع دارایی‌ها</td><td>5,000</td></tr>
+              <tr><td>جمع حقوق مالکانه</td><td>2,000</td></tr>
+              <tr><td>جمع بدهی‌های جاری</td><td>700</td></tr>
+              <tr><td>جمع بدهی‌ها</td><td>3,000</td></tr>
+              <tr><td>سود (زیان) خالص</td><td>300</td></tr>
+            </table>
+        """.trimIndent()
+        val metrics = CodalFinancialParser.parseHtml(html)
+        assertEquals(5000.0, metrics.totalAssets!!, 0.0)
+        assertEquals(3000.0, metrics.totalLiabilities!!, 0.0)
     }
 
     @Test
