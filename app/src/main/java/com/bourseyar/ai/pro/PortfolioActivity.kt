@@ -110,11 +110,12 @@ class PortfolioActivity:Activity() {
                 .setPositiveButton("بستن", null).show()
             return
         }
-        val lines = result.positions.joinToString("\\n") {
+        val lines = result.positions.joinToString("\n") {
             "${it.symbol} | موجودی: ${fmt(it.quantity)} | میانگین بهای تمام‌شده: ${fmt(it.averageCostPerShare)} ریال | بهای مانده: ${fmt(it.remainingCost)} ریال"
         }
-        val message = "تعداد معاملات ثبت‌شده: ${transactions.size}\\nسود/زیان تحقق‌یافته: ${fmt(result.realizedProfitLoss)} ریال\\n\\nموجودی باز:\\n" +
-            lines.ifBlank { "موجودی بازی وجود ندارد." }
+        val message = "این دفتر مستقل از ثبت دستی قدیمی سبد است.\n" +
+            "تعداد معاملات ثبت‌شده: ${transactions.size}\nسود/زیان تحقق‌یافته: ${fmt(result.realizedProfitLoss)} ریال\n\nموجودی باز:\n" +
+            lines.ifBlank { "موجودی بازی ثبت نشده است." }
         AlertDialog.Builder(this).setTitle("دفتر معاملات")
             .setMessage(message)
             .setPositiveButton("ثبت معامله") { _, _ -> addLedgerTransaction() }
