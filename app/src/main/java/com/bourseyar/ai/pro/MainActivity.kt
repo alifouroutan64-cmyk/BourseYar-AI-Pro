@@ -271,23 +271,22 @@ class MainActivity : Activity() {
                                 val report = AnalysisEngine.analyze(history.candles)
                                     ?: error("برای محاسبه شاخص‌ها داده کافی نیست")
                                 val volume = VolumeAnalysis.analyze(history.candles)
-                                val lastCandle = history.candles.last()
                                 val volumeText = volume?.let {
-                                    "حجم آخرین کندل: %.0f سهم\\nمیانگین حجم تا ۲۰ جلسه قبل: %.0f سهم\\nحجم نسبی: %.2fx\\nجلسات معتبر در میانگین: %d"
+                                    "حجم آخرین کندل: %.0f سهم\nمیانگین حجم تا ۲۰ جلسه قبل: %.0f سهم\nحجم نسبی: %.2fx\nجلسات معتبر در میانگین: %d"
                                         .format(java.util.Locale.US, it.currentVolume, it.averagePriorVolume, it.relativeVolume, it.validPriorSessions)
                                 } ?: "تحلیل حجم: ناموجود؛ حداقل ۱۰ جلسه معتبر و حجم مثبت لازم است"
-                                val details = "نماد: ${history.symbol}\\nتعداد کندل معتبر: ${history.candles.size}\\n" +
-                                    "آخرین قیمت پایانی تعدیل‌شده: ${"%.0f".format(java.util.Locale.US, report.last)}\\n" +
-                                    "روند: ${report.trend} | امتیاز تکنیکال: ${report.score}/100\\n" +
-                                    "RSI(14): ${report.rsi?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
-                                    "EMA20: ${report.ema20?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
-                                    "EMA50: ${report.ema50?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
-                                    "MACD: ${report.macd?.let { "%.4f".format(java.util.Locale.US, it) } ?: "—"} | سیگنال: ${report.macdSignal?.let { "%.4f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
-                                    "ATR(14): ${report.atr?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
-                                    "حمایت تقریبی ۲۰ جلسه: ${report.support?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\\n" +
-                                    "مقاومت تقریبی ۲۰ جلسه: ${report.resistance?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\\n\\n" +
-                                    volumeText + "\\n\\n" + report.notes.joinToString("\\n") +
-                                    "\\n\\nتوجه: تاریخچه نمودار TSETMC با قیمت تعدیل‌شده دریافت می‌شود؛ قیمت فعلی تابلو ممکن است با قیمت تعدیل‌شده تاریخی متفاوت باشد. این خروجی توصیه خرید یا فروش نیست."
+                                val details = "نماد: ${history.symbol}\nتعداد کندل معتبر: ${history.candles.size}\n" +
+                                    "آخرین قیمت پایانی تعدیل‌شده: ${"%.0f".format(java.util.Locale.US, report.last)}\n" +
+                                    "روند: ${report.trend} | امتیاز تکنیکال: ${report.score}/100\n" +
+                                    "RSI(14): ${report.rsi?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "EMA20: ${report.ema20?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "EMA50: ${report.ema50?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "MACD: ${report.macd?.let { "%.4f".format(java.util.Locale.US, it) } ?: "—"} | سیگنال: ${report.macdSignal?.let { "%.4f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "ATR(14): ${report.atr?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "حمایت تقریبی ۲۰ جلسه: ${report.support?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "مقاومت تقریبی ۲۰ جلسه: ${report.resistance?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n\n" +
+                                    volumeText + "\n\n" + report.notes.joinToString("\n") +
+                                    "\n\nتوجه: تاریخچه نمودار TSETMC با قیمت تعدیل‌شده دریافت می‌شود؛ قیمت فعلی تابلو ممکن است با قیمت تعدیل‌شده تاریخی متفاوت باشد. این خروجی توصیه خرید یا فروش نیست."
                                 history.symbol to details
                             }
                             runOnUiThread {
