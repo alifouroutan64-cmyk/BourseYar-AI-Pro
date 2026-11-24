@@ -72,12 +72,25 @@ object CodalPublicApi {
     private class CodalHttpException(val statusCode: Int) : IOException("کدال HTTP $statusCode")
     private val requestLock = Any()
     @Volatile private var lastRequestAtMillis = 0L
+    @Volatile private var blockedUntilMillis = 0L
 
     private fun waitForRequestSlot() {
         synchronized(requestLock) {
-            val waitMillis = 2_000L - (System.currentTimeMillis() - lastRequestAtMillis)
+            val now = System.currentTimeMillis()
+            val cooldownMillis = blockedUntilMillis - now
+            if (cooldownMillis > 0) {
+                throw IOException("کدال به‌دلیل محدودیت درخواست موقتاً متوقف شده است؛ حدود ${(cooldownMillis + 999) / 1000} ثانیه دیگر تلاش کنید")
+            }
+            val waitMillis = 2_000L - (now - lastRequestAtMillis)
             if (waitMillis > 0) Thread.sleep(waitMillis)
             lastRequestAtMillis = System.currentTimeMillis()
+        }
+    }
+
+    private fun activateRateLimitCooldown() {
+        synchronized(requestLock) {
+            // A 429 can indicate an IP-wide block. Avoid hammering Codal from other screens.
+            blockedUntilMillis = maxOf(blockedUntilMillis, System.currentTimeMillis() + 60_000L)
         }
     }
 
@@ -147,7 +160,10 @@ object CodalPublicApi {
                 lastError = e
                 // A 429 means Codal is throttling this client. Do not immediately hit
                 // the alternate query shape; that only increases the block window.
-                if (e is CodalHttpException && e.statusCode == 429) throw e
+                if (e is CodalHttpException && e.statusCode == 429) {
+                    activateRateLimitCooldown()
+                    throw IOException("کدال پاسخ ۴۲۹ داده است؛ برای جلوگیری از مسدودشدن بیشتر، درخواست‌های جدید تا ۶۰ ثانیه متوقف شدند", e)
+                }
             }
         }
         throw lastError ?: IllegalStateException("ساختار جستجوی کدال شناخته نشد")
