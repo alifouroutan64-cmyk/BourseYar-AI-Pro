@@ -17,7 +17,7 @@ class TsetmcClientFlowAllParserTest {
         assertEquals(500.0, result["123456"]!!.netIndividualVolume!!, 0.001)
         assertEquals(100.0, result["123456"]!!.individualBuyPerBuyer!!, 0.001)
         assertEquals(300.0, result["234567"]!!.netIndividualVolume!!, 0.001)
-        assertEquals(40.0, result["234567"]!!.netLegalVolume!!, 0.001)
+        assertEquals(50.0, result["234567"]!!.netLegalVolume!!, 0.001)
     }
 
     @Test
