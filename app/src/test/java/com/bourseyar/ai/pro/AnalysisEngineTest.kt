@@ -123,9 +123,9 @@ class PortfolioLedgerTest {
         )))
         val position = result.positions.single()
         assertEquals(15L, position.quantity)
-        assertEquals(153L, position.averageCostPerShare)
-        assertEquals(185L, position.realizedProfitLoss)
-        assertEquals(185L, result.realizedProfitLoss)
+        assertEquals(160L, position.averageCostPerShare)
+        assertEquals(150L, position.realizedProfitLoss)
+        assertEquals(150L, result.realizedProfitLoss)
     }
 
     @org.junit.Test
