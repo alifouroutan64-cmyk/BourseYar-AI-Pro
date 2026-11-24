@@ -944,30 +944,11 @@ class MainActivity : Activity() {
             var failure: String? = null
             var rendered = ""
             var diagnostic = "گزارش خطای دریافت بازار\n"
-            try {
-                val snapshot = MarketWatchDataSource.fetch(endpoint)
-                val code = snapshot.statusCode
-                val contentType = snapshot.contentType
-                val raw = snapshot.body
-                diagnostic += "نشانی: $endpoint\nHTTP: $code\nنوع محتوا: $contentType\nحجم پاسخ: ${raw.length} نویسه\n"
-                require(code in 200..299) { "TSETMC پاسخ HTTP " + code + " برگرداند" }
-                val root = JSONObject(raw)
-                val rows = root.optJSONArray("marketwatch")
-                    ?: root.optJSONArray("marketWatch")
-                    ?: error("آرایه marketwatch در پاسخ پیدا نشد؛ ساختار سرویس تغییر کرده است")
-                diagnostic += "کلیدهای ریشه: ${root.keys().asSequence().toList().joinToString()}\nتعداد ردیف خام: ${rows.length()}\n"
-                diagnostic += "نمونه سه ردیف اول:\n" + (0 until minOf(3, rows.length())).joinToString("\n---\n") { i -> rows.optJSONObject(i)?.toString() ?: "ردیف $i شیء JSON نیست" }.take(3500) + "\n"
-                val parsedResult = TsetmcMarketWatchParser.parse(rows)
-                val parsed = parsedResult.rows
-                diagnostic += parsedResult.diagnostics
-                lastMarketErrorReport = diagnostic
-                require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود. ${parsedResult.diagnostics}" }
-                rendered = MarketWatchFormatter.format(parsed, 45)
-            } catch (e: Exception) {
-                failure = e.localizedMessage ?: "خطای شبکه یا پاسخ نامعتبر"
-                diagnostic += "\nنوع استثنا: ${e.javaClass.name}\nشرح خطا: ${e.localizedMessage ?: "بدون توضیح"}\n"
-                lastMarketErrorReport = diagnostic
-            }
+            val result = MarketWatchRepository.load(endpoint)
+            failure = result.failureMessage
+            rendered = result.renderedText.orEmpty()
+            diagnostic = result.diagnosticReport
+            lastMarketErrorReport = diagnostic
             runOnUiThread {
                 marketRequestInFlight = false
                 if (failure == null) {
