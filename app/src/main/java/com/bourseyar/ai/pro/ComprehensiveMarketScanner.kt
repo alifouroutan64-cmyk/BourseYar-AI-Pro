@@ -11,6 +11,12 @@ import java.net.URLEncoder
  * TSETMC endpoints are unofficial/public and may throttle, block, or change.
  * Missing fundamentals are kept missing; never fabricate a financial ratio.
  */
+data class CodalFilingReference(
+    val title: String,
+    val publishDate: String?,
+    val url: String?
+)
+
 data class FundamentalSnapshot(
     val symbol: String,
     val filingsFound: Int,
@@ -21,7 +27,8 @@ data class FundamentalSnapshot(
     val netProfitGrowthPercent: Double? = null,
     val roePercent: Double? = null,
     val debtToEquity: Double? = null,
-    val sourceNote: String = "کدال عمومی؛ شاخص‌های مالی فقط در صورت استخراج معتبر نمایش داده می‌شوند"
+    val sourceNote: String = "کدال عمومی؛ شاخص‌های مالی فقط در صورت استخراج معتبر نمایش داده می‌شوند",
+    val recentFilings: List<CodalFilingReference> = emptyList()
 ) {
     val hasFinancialMetrics: Boolean get() = listOf(eps, pe, revenueGrowthPercent, netProfitGrowthPercent, roePercent, debtToEquity).any { it != null }
 }
@@ -60,14 +67,45 @@ object CodalPublicApi {
                 val root = JSONObject(request(url))
                 val rows = root.optJSONArray("Letters") ?: root.optJSONArray("letter") ?: root.optJSONArray("items")
                     ?: root.optJSONArray("data") ?: JSONArray()
-                val titles = mutableListOf<String>()
+                val references = mutableListOf<CodalFilingReference>()
                 for (i in 0 until rows.length()) {
                     val row = rows.optJSONObject(i) ?: continue
-                    val title = row.optString("Title", row.optString("title", row.optString("LetterTitle", ""))).trim()
-                    if (title.isNotBlank()) titles += title
+                    val title = sequenceOf("Title", "title", "LetterTitle", "letterTitle")
+                        .map { row.optString(it).trim() }
+                        .firstOrNull { it.isNotBlank() && it != "null" } ?: continue
+                    val rowSymbol = sequenceOf("Symbol", "symbol", "Ticker", "ticker")
+                        .map { row.optString(it).trim() }
+                        .firstOrNull { it.isNotBlank() && it != "null" }
+                    val normalizedRequested = symbol.trim().replace("ي", "ی").replace("ك", "ک")
+                    if (rowSymbol != null && rowSymbol.replace("ي", "ی").replace("ك", "ک") != normalizedRequested) continue
+                    val rawUrl = sequenceOf("HtmlUrl", "htmlUrl", "Url", "url", "Link", "link")
+                        .map { row.optString(it).trim() }
+                        .firstOrNull { it.isNotBlank() && it != "null" }
+                    val safeUrl = rawUrl?.let { candidate ->
+                        runCatching {
+                            val absolute = if (candidate.startsWith("/")) "https://www.codal.ir$candidate" else candidate
+                            val parsed = URL(absolute)
+                            absolute.takeIf {
+                                parsed.protocol == "https" &&
+                                    (parsed.host == "codal.ir" || parsed.host.endsWith(".codal.ir"))
+                            }
+                        }.getOrNull()
+                    }
+                    val date = sequenceOf("PublishDateTime", "publishDateTime", "SentDateTime", "sentDateTime", "PublishDate")
+                        .map { row.optString(it).trim() }
+                        .firstOrNull { it.isNotBlank() && it != "null" }
+                    references += CodalFilingReference(title, date, safeUrl)
                 }
                 if (rows.length() > 0 || root.has("Letters") || root.has("items") || root.has("data")) {
-                    return FundamentalSnapshot(symbol, rows.length(), titles.take(5))
+                    val total = sequenceOf("Total", "total", "TotalCount", "totalCount", "Count", "count")
+                        .mapNotNull { root.opt(it)?.toString()?.toIntOrNull() }
+                        .firstOrNull { it >= 0 } ?: rows.length()
+                    return FundamentalSnapshot(
+                        symbol = symbol,
+                        filingsFound = maxOf(total, references.size),
+                        recentFilingTitles = references.take(5).map { it.title },
+                        recentFilings = references.take(5)
+                    )
                 }
             } catch (e: Exception) { lastError = e }
         }
