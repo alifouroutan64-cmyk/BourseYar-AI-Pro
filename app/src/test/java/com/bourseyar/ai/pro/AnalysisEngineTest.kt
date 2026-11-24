@@ -6,6 +6,16 @@ import org.junit.Test
 
 class AnalysisEngineTest {
     @Test
+    fun codalFilingTitlesAreClassifiedWithoutInventingMetrics() {
+        assertEquals("صورت‌های مالی", classifyCodalFiling("ارائه صورت‌های مالی سالانه حسابرسی‌شده"))
+        assertEquals("افزایش سرمایه", classifyCodalFiling("پیشنهاد افزایش سرمایه"))
+        assertEquals("مجمع", classifyCodalFiling("آگهی دعوت به مجمع عمومی عادی"))
+        assertEquals("پرداخت سود سهام", classifyCodalFiling("زمان‌بندی پرداخت سود سهام"))
+        assertEquals("افشای اطلاعات بااهمیت", classifyCodalFiling("افشای اطلاعات بااهمیت"))
+        assertEquals("سایر اطلاعیه‌ها", classifyCodalFiling("اطلاعیه نامشخص"))
+    }
+
+    @Test
     fun codalLinksOnlyAllowOfficialHttpsHosts() {
         assertEquals("https://www.codal.ir/Reports/Decision.aspx?id=1",
             safeCodalUrl("/Reports/Decision.aspx?id=1"))
