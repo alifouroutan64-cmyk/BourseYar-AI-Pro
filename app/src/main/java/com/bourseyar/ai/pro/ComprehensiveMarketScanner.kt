@@ -2,6 +2,7 @@ package com.bourseyar.ai.pro
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -50,6 +51,8 @@ internal fun safeCodalUrl(rawUrl: String?): String? {
 object CodalPublicApi {
     private const val BASE = "https://search.codal.ir/api/search/v2/q"
 
+    private class CodalHttpException(val statusCode: Int) : IOException("کدال HTTP $statusCode")
+
     private fun request(url: String): String {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
@@ -62,7 +65,7 @@ object CodalPublicApi {
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            require(code in 200..299) { "کدال HTTP $code" }
+            if (code !in 200..299) throw CodalHttpException(code)
             require(body.isNotBlank()) { "پاسخ خالی کدال" }
             return body
         } finally { conn.disconnect() }
@@ -111,7 +114,12 @@ object CodalPublicApi {
                         recentFilings = references.take(5)
                     )
                 }
-            } catch (e: Exception) { lastError = e }
+            } catch (e: Exception) {
+                lastError = e
+                // A 429 means Codal is throttling this client. Do not immediately hit
+                // the alternate query shape; that only increases the block window.
+                if (e is CodalHttpException && e.statusCode == 429) throw e
+            }
         }
         throw lastError ?: IllegalStateException("ساختار جستجوی کدال شناخته نشد")
     }
