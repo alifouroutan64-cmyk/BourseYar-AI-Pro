@@ -62,6 +62,7 @@ class PortfolioActivity:Activity() {
         root.addView(text("سرمایه اولیه: "+fmt(cost)+" ریال",14f,0xFFBFCBDA.toInt()))
         root.addView(text("سود/زیان: "+fmt(pnl)+" ریال | "+percent(if(cost>0)pnl.toDouble()*100/cost else 0.0),16f,if(pnl>=0)green else red,true))
         root.addView(Button(this).apply{ text="افزودن سهم";setOnClickListener{form(null)} })
+        root.addView(Button(this).apply{ text="دفتر معاملات خرید و فروش";setOnClickListener{showLedger()} })
         root.addView(Button(this).apply{ text="پیشنهادهای اسکن جامع بورس‌یار";setOnClickListener{showScannerRecommendations()} })
         root.addView(Button(this).apply{ text="به‌روزرسانی قیمت‌ها از TSETMC";setOnClickListener{refreshPrices()} })
         root.addView(text("تعداد سهام ثبت‌شده: "+data.size,13f,0xFFBFCBDA.toInt()))
@@ -71,6 +72,98 @@ class PortfolioActivity:Activity() {
         data.forEach { h -> list.addView(card(h)) }
         setContentView(root)
     }
+
+    private fun loadTransactions(): List<LedgerTransaction> = try {
+        val array = JSONArray(prefs.getString("transactions", "[]"))
+        (0 until array.length()).map { i ->
+            val row = array.getJSONObject(i)
+            LedgerTransaction(
+                timestamp = row.getLong("timestamp"),
+                symbol = row.getString("symbol"),
+                side = TransactionSide.valueOf(row.getString("side")),
+                quantity = row.getLong("quantity"),
+                unitPrice = row.getLong("price"),
+                fee = row.optLong("fee", 0L)
+            )
+        }
+    } catch (_: Exception) { emptyList() }
+
+    private fun saveTransactions(items: List<LedgerTransaction>) {
+        val array = JSONArray()
+        items.forEach { tx ->
+            array.put(JSONObject()
+                .put("timestamp", tx.timestamp)
+                .put("symbol", tx.symbol)
+                .put("side", tx.side.name)
+                .put("quantity", tx.quantity)
+                .put("price", tx.unitPrice)
+                .put("fee", tx.fee))
+        }
+        prefs.edit().putString("transactions", array.toString()).apply()
+    }
+
+    private fun showLedger() {
+        val transactions = loadTransactions()
+        val result = PortfolioLedger.calculate(transactions)
+        if (result == null) {
+            AlertDialog.Builder(this).setMessage("دفتر معاملات نامعتبر است؛ فروش بیش از موجودی یا عدد خارج از محدوده ثبت شده است.")
+                .setPositiveButton("بستن", null).show()
+            return
+        }
+        val lines = result.positions.joinToString("\\n") {
+            "${it.symbol} | موجودی: ${fmt(it.quantity)} | میانگین بهای تمام‌شده: ${fmt(it.averageCostPerShare)} ریال | بهای مانده: ${fmt(it.remainingCost)} ریال"
+        }
+        val message = "تعداد معاملات ثبت‌شده: ${transactions.size}\\nسود/زیان تحقق‌یافته: ${fmt(result.realizedProfitLoss)} ریال\\n\\nموجودی باز:\\n" +
+            lines.ifBlank { "موجودی بازی وجود ندارد." }
+        AlertDialog.Builder(this).setTitle("دفتر معاملات")
+            .setMessage(message)
+            .setPositiveButton("ثبت معامله") { _, _ -> addLedgerTransaction() }
+            .setNeutralButton("بستن", null)
+            .show()
+    }
+
+    private fun addLedgerTransaction() {
+        val fields = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(12, 0, 12, 0)
+        }
+        val side = Spinner(this).apply {
+            adapter = ArrayAdapter(this@PortfolioActivity, android.R.layout.simple_spinner_dropdown_item, listOf("خرید", "فروش"))
+        }
+        fun numeric(hint: String): EditText = EditText(this).apply {
+            this.hint = hint
+            inputType = InputType.TYPE_CLASS_NUMBER
+            isSingleLine = true
+        }
+        val symbol = EditText(this).apply { hint = "نماد؛ مثال فولاد"; isSingleLine = true }
+        val quantity = numeric("تعداد سهم")
+        val price = numeric("قیمت هر سهم (ریال)")
+        val fee = numeric("کارمزد کل معامله (ریال، اختیاری)")
+        fields.addView(side)
+        listOf(symbol, quantity, price, fee).forEach { fields.addView(it) }
+        AlertDialog.Builder(this).setTitle("ثبت خرید یا فروش").setView(fields)
+            .setNegativeButton("لغو", null)
+            .setPositiveButton("ثبت") { _, _ ->
+                val name = symbol.text.toString().trim().uppercase(Locale.ROOT)
+                val qty = quantity.text.toString().toLongOrNull() ?: 0L
+                val unitPrice = price.text.toString().toLongOrNull() ?: 0L
+                val commission = fee.text.toString().toLongOrNull() ?: 0L
+                val tx = LedgerTransaction(
+                    System.currentTimeMillis(), name,
+                    if (side.selectedItemPosition == 0) TransactionSide.BUY else TransactionSide.SELL,
+                    qty, unitPrice, commission
+                )
+                val candidate = loadTransactions() + tx
+                val calculated = PortfolioLedger.calculate(candidate)
+                if (name.isBlank() || qty <= 0 || unitPrice <= 0 || commission < 0 || calculated == null) {
+                    Toast.makeText(this, "اطلاعات نامعتبر است یا تعداد فروش از موجودی دفتر معاملات بیشتر است.", Toast.LENGTH_LONG).show()
+                } else {
+                    saveTransactions(candidate)
+                    showLedger()
+                }
+            }.show()
+    }
+
     private fun refreshPrices() {
         val holdings = load()
         if (holdings.isEmpty()) {
