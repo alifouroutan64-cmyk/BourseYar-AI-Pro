@@ -59,8 +59,11 @@ internal fun safeCodalUrl(rawUrl: String?): String? {
         val absolute = if (candidate.startsWith("/")) "https://www.codal.ir$candidate" else candidate
         val parsed = URL(absolute)
         absolute.takeIf {
-            parsed.protocol == "https" &&
-                (parsed.host == "codal.ir" || parsed.host.endsWith(".codal.ir"))
+            parsed.protocol.equals("https", ignoreCase = true) &&
+                parsed.userInfo == null &&
+                (parsed.port == -1 || parsed.port == 443) &&
+                (parsed.host.equals("codal.ir", ignoreCase = true) ||
+                    parsed.host.endsWith(".codal.ir", ignoreCase = true))
         }
     }.getOrNull()
 }
