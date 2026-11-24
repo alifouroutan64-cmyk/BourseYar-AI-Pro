@@ -175,9 +175,19 @@ object ComprehensiveMarketScanner {
                 val snapshot = runCatching { TsetmcHistoryProvider.fetchLiveSnapshot(leader.symbol) }.getOrNull()
                 val quote = snapshot?.quote
                 val last = quote?.last ?: quote?.close ?: technical.report.last
-                val codal = runCatching { CodalPublicApi.searchFilings(leader.symbol) }.getOrNull()
+                // Keep the multi-symbol scanner away from Codal's aggressively rate-limited search API.
+                // Filing titles remain available through the explicit per-symbol Codal search action.
                 val tseFund = runCatching { TsetmcFundamentalApi.fetch(leader.symbol) }.getOrNull()
-                val fundamental = if (codal != null || tseFund != null) FundamentalSnapshot(leader.symbol, codal?.filingsFound ?: 0, codal?.recentFilingTitles.orEmpty(), eps = tseFund?.eps, pe = tseFund?.pe) else null
+                val fundamental = tseFund?.let {
+                    FundamentalSnapshot(
+                        symbol = leader.symbol,
+                        filingsFound = 0,
+                        recentFilingTitles = emptyList(),
+                        eps = it.eps,
+                        pe = it.pe,
+                        sourceNote = "EPS و P/E از اطلاعات ابزار TSETMC؛ فهرست اطلاعیه‌ها با جستجوی جداگانه کدال"
+                    )
+                }
                 val stop = technical.report.support?.let { minOf(it, last * (1.0 - technical.riskPercent / 100.0)) }
                     ?: last * (1.0 - technical.riskPercent / 100.0)
                 val risk = last - stop
