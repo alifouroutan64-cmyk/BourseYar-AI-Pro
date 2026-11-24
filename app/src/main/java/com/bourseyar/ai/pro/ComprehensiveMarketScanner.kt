@@ -33,6 +33,19 @@ data class FundamentalSnapshot(
     val hasFinancialMetrics: Boolean get() = listOf(eps, pe, revenueGrowthPercent, netProfitGrowthPercent, roePercent, debtToEquity).any { it != null }
 }
 
+/** Accept only HTTPS links hosted by Codal; relative report paths are resolved to the official host. */
+internal fun safeCodalUrl(rawUrl: String?): String? {
+    val candidate = rawUrl?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
+    return runCatching {
+        val absolute = if (candidate.startsWith("/")) "https://www.codal.ir$candidate" else candidate
+        val parsed = URL(absolute)
+        absolute.takeIf {
+            parsed.protocol == "https" &&
+                (parsed.host == "codal.ir" || parsed.host.endsWith(".codal.ir"))
+        }
+    }.getOrNull()
+}
+
 /** Free Codal search API. Its schema is not a stable contract; this parser is intentionally defensive. */
 object CodalPublicApi {
     private const val BASE = "https://search.codal.ir/api/search/v2/q"
@@ -81,16 +94,7 @@ object CodalPublicApi {
                     val rawUrl = sequenceOf("HtmlUrl", "htmlUrl", "Url", "url", "Link", "link")
                         .map { row.optString(it).trim() }
                         .firstOrNull { it.isNotBlank() && it != "null" }
-                    val safeUrl = rawUrl?.let { candidate ->
-                        runCatching {
-                            val absolute = if (candidate.startsWith("/")) "https://www.codal.ir$candidate" else candidate
-                            val parsed = URL(absolute)
-                            absolute.takeIf {
-                                parsed.protocol == "https" &&
-                                    (parsed.host == "codal.ir" || parsed.host.endsWith(".codal.ir"))
-                            }
-                        }.getOrNull()
-                    }
+                    val safeUrl = safeCodalUrl(rawUrl)
                     val date = sequenceOf("PublishDateTime", "publishDateTime", "SentDateTime", "sentDateTime", "PublishDate")
                         .map { row.optString(it).trim() }
                         .firstOrNull { it.isNotBlank() && it != "null" }
