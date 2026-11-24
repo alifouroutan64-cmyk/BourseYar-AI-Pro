@@ -152,7 +152,7 @@ object AnalysisEngine {
         val breakout = last > prior.maxOf { it.high }
         val volumeMetrics = VolumeAnalysis.analyze(candles)
         val avgVol20 = volumeMetrics?.averagePriorVolume
-        if (minAverageVolume > 0 && avgVol20 != null && avgVol20 < minAverageVolume) return null
+        if (minAverageVolume > 0 && (avgVol20 == null || avgVol20 < minAverageVolume)) return null
         val volRatio = volumeMetrics?.relativeVolume
         val momentum5 = (last / candles[candles.size - 6].close - 1.0) * 100.0
         val risk = (report.atr ?: last * 0.04).coerceAtLeast(last * 0.01)
