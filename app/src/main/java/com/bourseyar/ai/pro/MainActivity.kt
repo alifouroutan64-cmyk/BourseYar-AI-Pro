@@ -271,6 +271,12 @@ class MainActivity : Activity() {
                             resultText.text = "ابتدا نام نماد را وارد کنید."
                             return@setOnClickListener
                         }
+                        val feeBps = feeInput.text.toString().toDoubleOrNull()
+                            ?.takeIf { it.isFinite() && it >= 0.0 }
+                        if (feeBps == null) {
+                            resultText.text = "کارمزد رفت‌وبرگشت باید عدد نامنفی باشد."
+                            return@setOnClickListener
+                        }
                         isEnabled = false
                         text = "در حال دریافت تاریخچه…"
                         resultText.text = "در حال دریافت کندل‌های روزانه $symbol از TSETMC…"
@@ -279,9 +285,6 @@ class MainActivity : Activity() {
                                 val history = TsetmcHistoryProvider.fetchDaily(symbol)
                                 val report = AnalysisEngine.analyze(history.candles)
                                     ?: error("برای محاسبه شاخص‌ها داده کافی نیست")
-                                val feeBps = feeInput.text.toString().toDoubleOrNull()
-                                    ?.takeIf { it.isFinite() && it >= 0.0 }
-                                    ?: error("کارمزد رفت‌وبرگشت باید عدد نامنفی باشد")
                                 val backtest = AnalysisEngine.backtest(history.candles, 70, feeBps)
                                 val backtestText = if (backtest.isEmpty() || backtest.all { it.trades == 0 }) {
                                     "بک‌تست: داده کافی یا معامله واجد شرایط وجود ندارد؛ حداقل ۶۰ کندل معتبر لازم است."
