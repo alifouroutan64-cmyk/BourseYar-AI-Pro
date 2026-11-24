@@ -324,19 +324,12 @@ internal fun normalizeTsetmcSymbol(value: String): String =
         .lowercase(java.util.Locale.ROOT)
 
 /** Select only an exact symbol match; search ranking must never silently choose a different instrument. */
-internal fun selectExactTsetmcInstrumentCode(rows: JSONArray, requestedSymbol: String): String? {
+internal fun selectExactTsetmcInstrumentCode(instruments: List<Pair<String, String>>, requestedSymbol: String): String? {
     val requested = normalizeTsetmcSymbol(requestedSymbol)
     if (requested.isBlank()) return null
-    for (index in 0 until rows.length()) {
-        val row = rows.optJSONObject(index) ?: continue
-        val symbol = sequenceOf("lVal18AFC", "lval18afc", "symbol", "Symbol", "instrumentName", "InstrumentName")
-            .map { row.optString(it).trim() }
-            .firstOrNull { it.isNotBlank() && it != "null" } ?: continue
-        if (normalizeTsetmcSymbol(symbol) != requested) continue
-        val code = row.optString("insCode").trim()
-        if (code.isNotBlank() && code != "null") return code
-    }
-    return null
+    return instruments.firstOrNull { (symbol, _) ->
+        normalizeTsetmcSymbol(symbol) == requested
+    }?.second?.takeIf { it.isNotBlank() && it != "null" }
 }
 
 /** Best-effort public instrument fundamentals (EPS/P-E) from TSETMC; never marks missing fields as zero. */
@@ -367,7 +360,15 @@ object TsetmcFundamentalApi {
     fun fetch(symbol: String): TsetmcFundamentalMetrics {
         val search = get("$BASE/Instrument/GetInstrumentSearch/${URLEncoder.encode(symbol, "UTF-8")}")
         val rows = search.optJSONArray("instrumentSearch") ?: JSONArray()
-        val code = selectExactTsetmcInstrumentCode(rows, symbol)
+        val instruments = (0 until rows.length()).mapNotNull { index ->
+            val row = rows.optJSONObject(index) ?: return@mapNotNull null
+            val name = sequenceOf("lVal18AFC", "lval18afc", "symbol", "Symbol", "instrumentName", "InstrumentName")
+                .map { row.optString(it).trim() }
+                .firstOrNull { it.isNotBlank() && it != "null" } ?: return@mapNotNull null
+            val code = row.optString("insCode").trim()
+            if (code.isBlank() || code == "null") null else name to code
+        }
+        val code = selectExactTsetmcInstrumentCode(instruments, symbol)
             ?: error("نماد دقیق $symbol در نتایج جستجوی TSETMC پیدا نشد؛ برای جلوگیری از نمایش اطلاعات نماد اشتباه، داده بنیادی رد شد")
         val info = get("$BASE/Instrument/GetInstrumentInfo/${URLEncoder.encode(code, "UTF-8")}")
         val obj = info.optJSONObject("instrumentInfo") ?: info
