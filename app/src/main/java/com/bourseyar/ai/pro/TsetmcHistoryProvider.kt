@@ -48,7 +48,7 @@ object TsetmcHistoryProvider {
 
     private fun get(url: String): String = TsetmcHttpClient.get(url)
 
-    private fun resolveInstrumentCode(symbol: String): String {
+    private fun resolveInstrumentCode(symbol: String): String? {
         val query = URLEncoder.encode(symbol.trim(), "UTF-8")
         val response = get("$BASE/Instrument/GetInstrumentSearch/$query")
         return TsetmcInstrumentResolver.resolve(symbol, response)
@@ -201,7 +201,7 @@ object TsetmcHistoryProvider {
 
     /** Fetch a conservative five-session money-flow score for a symbol; null means unavailable. */
     fun fetchFiveSessionFlowScore(symbol: String): Int? {
-        val code = runCatching { resolveInstrumentCode(symbol) }.getOrNull() ?: return null
+        val code = resolveInstrumentCode(symbol) ?: return null
         val days = fetchClientFlowHistory(code).takeLast(5)
         val valid = days.mapNotNull { day ->
             val net = day.netIndividualValue
@@ -284,6 +284,7 @@ object TsetmcHistoryProvider {
 
     fun fetchDaily(symbol: String): HistoricalSeries {
         val code = resolveInstrumentCode(symbol)
+            ?: error("نماد دقیق «$symbol» در جستجوی TSETMC پیدا نشد")
         val raw = get("$CHART?i=$code&t=ph&a=1")
         return TsetmcDailyHistoryParser.parse(symbol, raw)
     }
