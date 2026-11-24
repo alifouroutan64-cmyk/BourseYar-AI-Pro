@@ -151,7 +151,15 @@ object CodalPublicApi {
         val extracted = runCatching {
             val safeUrl = safeCodalExcelUrl(statement.excelUrl)
                 ?: throw IOException("پیوند اکسل رسمی معتبر نیست")
-            val body = request(safeUrl)
+            val body = try {
+                request(safeUrl)
+            } catch (e: CodalHttpException) {
+                if (e.statusCode == 429) {
+                    activateRateLimitCooldown()
+                    throw IOException("کدال پاسخ ۴۲۹ داده است؛ درخواست‌های بعدی تا ۶۰ ثانیه متوقف شدند", e)
+                }
+                throw e
+            }
             if (!body.contains("<table", ignoreCase = true)) {
                 throw IOException("فایل اکسل در قالب HTML قابل‌خواندن نبود؛ احتمالاً فایل قدیمی یا پاسخ محدودشده کدال است")
             }
