@@ -102,9 +102,10 @@ data class MarketScanDiagnostics(
     val requestedSymbols: Int,
     val analyzedSymbols: Int,
     val rejectedForInsufficientHistory: Int,
+    val totalFailedSymbols: Int,
     val failedSymbols: List<String>
 ) {
-    val failedCount: Int get() = failedSymbols.size
+    val failedCount: Int get() = totalFailedSymbols
 }
 
 /** Whole-market liquidity shortlist, then conservative multi-factor ranking. */
@@ -194,6 +195,7 @@ object ComprehensiveMarketScanner {
             requestedSymbols = selectedLeaders.size,
             analyzedSymbols = output.size,
             rejectedForInsufficientHistory = insufficientHistory,
+            totalFailedSymbols = failures.size,
             failedSymbols = failures.take(10)
         )
         return output.sortedWith(compareBy<ComprehensiveCandidate> { if (it.excludedReason == null) 0 else 1 }.thenByDescending { it.compositeScore })
