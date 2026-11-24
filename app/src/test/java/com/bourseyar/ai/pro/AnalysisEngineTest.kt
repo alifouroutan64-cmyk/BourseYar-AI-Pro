@@ -5,6 +5,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AnalysisEngineTest {
+    @Test
+    fun codalLinksOnlyAllowOfficialHttpsHosts() {
+        assertEquals("https://www.codal.ir/Reports/Decision.aspx?id=1",
+            safeCodalUrl("/Reports/Decision.aspx?id=1"))
+        assertEquals("https://codal.ir/report",
+            safeCodalUrl("https://codal.ir/report"))
+        assertEquals(null, safeCodalUrl("http://www.codal.ir/report"))
+        assertEquals(null, safeCodalUrl("https://codal.ir.example.com/report"))
+        assertEquals(null, safeCodalUrl("https://example.com/report"))
+    }
+
     private fun flatCandles(size: Int = 90) = List(size) {
         Candle(open = 100.0, high = 101.0, low = 99.0, close = 100.0, volume = 1000.0)
     }
