@@ -111,3 +111,48 @@ class AnalysisEngineTest {
     }
 
 }
+
+
+class PortfolioLedgerTest {
+    @org.junit.Test
+    fun weightedAverageIncludesBuyFeesAndSellFeeReducesProfit() {
+        val result = requireNotNull(PortfolioLedger.calculate(listOf(
+            LedgerTransaction(1, "فولاد", TransactionSide.BUY, 10, 100, 100),
+            LedgerTransaction(2, "فولاد", TransactionSide.BUY, 10, 200, 100),
+            LedgerTransaction(3, "فولاد", TransactionSide.SELL, 5, 200, 50)
+        )))
+        val position = result.positions.single()
+        assertEquals(15L, position.quantity)
+        assertEquals(153L, position.averageCostPerShare)
+        assertEquals(185L, position.realizedProfitLoss)
+        assertEquals(185L, result.realizedProfitLoss)
+    }
+
+    @org.junit.Test
+    fun sellingMoreThanOwnedIsRejected() {
+        assertEquals(null, PortfolioLedger.calculate(listOf(
+            LedgerTransaction(1, "فولاد", TransactionSide.BUY, 5, 100),
+            LedgerTransaction(2, "فولاد", TransactionSide.SELL, 6, 110)
+        )))
+    }
+
+    @org.junit.Test
+    fun ledgerNormalizesSymbolsAndRemovesFullyClosedPositions() {
+        val result = requireNotNull(PortfolioLedger.calculate(listOf(
+            LedgerTransaction(1, " فولاد ", TransactionSide.BUY, 5, 100),
+            LedgerTransaction(2, "فولاد", TransactionSide.SELL, 5, 120)
+        )))
+        assertTrue(result.positions.isEmpty())
+        assertEquals(100L, result.realizedProfitLoss)
+    }
+
+    @org.junit.Test
+    fun invalidTransactionsAndOverflowAreRejected() {
+        assertEquals(null, PortfolioLedger.calculate(listOf(
+            LedgerTransaction(1, "فولاد", TransactionSide.BUY, 0, 100)
+        )))
+        assertEquals(null, PortfolioLedger.calculate(listOf(
+            LedgerTransaction(1, "فولاد", TransactionSide.BUY, Long.MAX_VALUE, 2)
+        )))
+    }
+}
