@@ -452,6 +452,8 @@ class MainActivity : Activity() {
                                             .put("stop", c.stopLoss)
                                             .put("target1", c.target1)
                                             .put("target2", c.target2)
+                                            .put("eps", c.fundamental?.eps ?: org.json.JSONObject.NULL)
+                                            .put("pe", c.fundamental?.pe ?: org.json.JSONObject.NULL)
                                             .put("recommendation", c.recommendation)
                                             .put("excludedReason", c.excludedReason ?: org.json.JSONObject.NULL))
                                     }
@@ -462,6 +464,7 @@ class MainActivity : Activity() {
                                         candidates.joinToString("\n\n") { c ->
                                             "${c.symbol} | امتیاز کل ${c.compositeScore}/100 | تکنیکال ${c.technicalScore}/100 | ${c.recommendation}\n" +
                                             "قیمت: ${"%.0f".format(java.util.Locale.US, c.lastPrice)} | جریان پول: ${c.flowScore ?: "ناموجود"} | حجم نسبی: ${c.relativeVolume?.let { "%.2fx".format(java.util.Locale.US, it) } ?: "ناموجود"}\n" +
+                                             "بنیادی: EPS ${c.fundamental?.eps?.let { "%.2f".format(java.util.Locale.US, it) } ?: "ناموجود"} | P/E ${c.fundamental?.pe?.let { "%.2f".format(java.util.Locale.US, it) } ?: "ناموجود"}\n" +
                                             "حدضرر: ${"%.0f".format(java.util.Locale.US, c.stopLoss)} | هدف ۱: ${"%.0f".format(java.util.Locale.US, c.target1)} | هدف ۲: ${"%.0f".format(java.util.Locale.US, c.target2)}\n" +
                                             (c.excludedReason?.let { "⛔ حذف از خرید: $it\n" } ?: "✅ از فیلتر اجرایی عبور کرده\n") +
                                             c.dataWarnings.joinToString("؛ ")
