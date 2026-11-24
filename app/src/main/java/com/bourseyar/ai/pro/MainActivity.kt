@@ -294,7 +294,7 @@ class MainActivity : Activity() {
                                             java.util.Locale.US, b.winRatePercent, b.averageReturnPercent,
                                             if (b.profitFactor.isFinite()) "%.2f".format(java.util.Locale.US, b.profitFactor) else "بدون زیان",
                                             b.maxDrawdownPercent)
-                                    } + "\nکارمزد رفت‌وبرگشت: $feeBps واحد پایه؛ معاملات ممکن است هم‌پوشانی داشته باشند."
+                                    } + "\nکارمزد رفت‌وبرگشت: $feeBps واحد پایه؛ در هر افق فقط یک موقعیت هم‌زمان شبیه‌سازی می‌شود؛ ورود بعدی پس از خروج قبلی است."
                                 }
                                 val volume = VolumeAnalysis.analyze(history.candles)
                                 val volumeText = volume?.let {
