@@ -140,33 +140,8 @@ object TsetmcHistoryProvider {
      */
     fun fetchClientFlowHistory(instrumentCode: String): List<ClientFlowDay> {
         require(instrumentCode.matches(Regex("\\d{5,25}"))) { "کد معاملاتی نماد نامعتبر است" }
-        val root = JSONObject(get("$BASE/ClientType/GetClientTypeHistory/$instrumentCode"))
-        val rows = root.optJSONArray("clientType")
-            ?: error("ساختار تاریخچه حقیقی/حقوقی TSETMC تغییر کرده است")
-        val parsed = (0 until rows.length()).mapNotNull { index ->
-            val row = rows.optJSONObject(index) ?: return@mapNotNull null
-            val date = row.opt("recDate")?.toString().orEmpty()
-            if (!date.matches(Regex("\\d{8}"))) return@mapNotNull null
-            val buyI = row.numberOrNull("buy_I_Volume")
-            val sellI = row.numberOrNull("sell_I_Volume")
-            val buyN = row.numberOrNull("buy_N_Volume")
-            val sellN = row.numberOrNull("sell_N_Volume")
-            val buyIValue = row.numberOrNull("buy_I_Value")
-            val sellIValue = row.numberOrNull("sell_I_Value")
-            val buyCount = row.numberOrNull("buy_I_Count")
-            val sellCount = row.numberOrNull("sell_I_Count")
-            ClientFlowDay(
-                date,
-                if (buyI != null && sellI != null) buyI - sellI else null,
-                if (buyIValue != null && sellIValue != null) buyIValue - sellIValue else null,
-                if (buyIValue != null && sellIValue != null) buyIValue + sellIValue else null,
-                if (buyN != null && sellN != null) buyN - sellN else null,
-                if (buyI != null && buyCount != null && buyCount > 0) buyI / buyCount else null,
-                if (sellI != null && sellCount != null && sellCount > 0) sellI / sellCount else null
-            )
-        }.distinctBy { it.date }.sortedBy { it.date }
-        require(parsed.isNotEmpty()) { "تاریخچه جریان حقیقی/حقوقی برای این نماد خالی یا نامعتبر است" }
-        return parsed
+        val body = get("$BASE/ClientType/GetClientTypeHistory/$instrumentCode")
+        return TsetmcClientFlowHistoryParser.parse(body)
     }
 
     /** Fetch a single all-market snapshot and rank instruments by reported traded value. */
