@@ -359,13 +359,23 @@ class MainActivity : Activity() {
                                                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                                                 )
                                             }
+                                            item.excelUrl?.let { excelUrl ->
+                                                val excelStart = content.length
+                                                content.append(" | دریافت اکسل رسمی")
+                                                content.setSpan(
+                                                    android.text.style.URLSpan(excelUrl),
+                                                    excelStart,
+                                                    content.length,
+                                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                                                )
+                                            }
                                             content.append("\n")
                                         }
                                     } else {
                                         content.append(filing.recentFilingTitles.mapIndexed { index, title -> "${index + 1}. $title" }
                                             .joinToString("\n").ifBlank { "عنوان اطلاعیه‌ای از پاسخ کدال استخراج نشد." })
                                     }
-                                    content.append("\nلینک‌های قابل کلیک فقط به دامنه امن codal.ir محدود شده‌اند.")
+                                    content.append("\nپیوند صفحه گزارش فقط به دامنه امن codal.ir و پیوند اکسل فقط به میزبان رسمی excel.codal.ir محدود شده‌اند.")
                                     content.append("\n\nاین بخش فهرست اطلاعیه‌ها را نمایش می‌دهد؛ هنوز ارقام صورت‌های مالی از متن گزارش‌ها استخراج نشده‌اند.")
                                     resultText.text = content
                                     resultText.movementMethod = android.text.method.LinkMovementMethod.getInstance()
