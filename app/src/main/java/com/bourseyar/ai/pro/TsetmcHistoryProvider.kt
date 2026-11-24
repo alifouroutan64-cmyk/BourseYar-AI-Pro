@@ -107,31 +107,8 @@ object TsetmcHistoryProvider {
 
     /** Bulk حقیقی/حقوقی flow snapshot for the latest available trading session. */
     fun fetchClientFlowAll(): Map<String, ClientFlow> {
-        val root = JSONObject(get("$BASE/ClientType/GetClientTypeAll"))
-        val rows = root.optJSONArray("clientTypeAllDto")
-            ?: error("ساختار جریان حقیقی/حقوقی TSETMC تغییر کرده است")
-        val result = linkedMapOf<String, ClientFlow>()
-        for (index in 0 until rows.length()) {
-            val row = rows.optJSONObject(index) ?: continue
-            val code = row.optString("insCode")
-            if (code.isBlank()) continue
-            val buyI = row.numberOrNull("buy_I_Volume", "buyIVolume")
-            val sellI = row.numberOrNull("sell_I_Volume", "sellIVolume")
-            val buyN = row.numberOrNull("buy_N_Volume", "buyNVolume")
-            val sellN = row.numberOrNull("sell_N_Volume", "sellNVolume")
-            val buyCountI = row.numberOrNull("buy_CountI", "buy_I_Count", "buyCountI")
-            val sellCountI = row.numberOrNull("sell_CountI", "sell_I_Count", "sellCountI")
-            // Missing fields remain unknown; never silently convert them to zero.
-            if (buyI == null || sellI == null || buyN == null || sellN == null) continue
-            result[code] = ClientFlow(
-                buyI - sellI,
-                buyN - sellN,
-                if (buyCountI != null && buyCountI > 0) buyI / buyCountI else null,
-                if (sellCountI != null && sellCountI > 0) sellI / sellCountI else null
-            )
-        }
-        require(result.isNotEmpty()) { "داده جریان حقیقی/حقوقی خالی است یا سرویس پاسخ معتبر نداد" }
-        return result
+        val body = get("$BASE/ClientType/GetClientTypeAll")
+        return TsetmcClientFlowAllParser.parse(body)
     }
 
     /**
