@@ -67,6 +67,21 @@ class CodalFinancialParserTest {
     }
 
     @Test
+    fun recognizesStatementAmountsEvenWhenNoRatioCanBeCalculated() {
+        val html = """
+            <table>
+              <tr><td>درآمدهای عملیاتی</td><td>1500</td></tr>
+              <tr><td>سود (زیان) خالص</td><td>300</td></tr>
+            </table>
+        """.trimIndent()
+        val metrics = CodalFinancialParser.parseHtml(html)
+        assertEquals(1500.0, metrics.totalRevenue!!, 0.0)
+        assertEquals(300.0, metrics.netProfit!!, 0.0)
+        assertFalse(metrics.revenueGrowthPercent != null)
+        assertEquals(true, metrics.hasMetrics)
+    }
+
+    @Test
     fun ignoresNonHtmlAndUnrelatedTables() {
         val binary = "PK\\u0003\\u0004not-an-html-workbook"
         val unrelated = "<table><tr><td>نام شرکت</td><td>نمونه</td></tr></table>"
