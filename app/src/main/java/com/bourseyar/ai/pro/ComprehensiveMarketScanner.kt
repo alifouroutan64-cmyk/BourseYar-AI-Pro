@@ -313,6 +313,32 @@ object ComprehensiveMarketScanner {
 
 data class TsetmcFundamentalMetrics(val eps: Double?, val pe: Double?, val sector: String?)
 
+/** Normalize Persian/Arabic symbol spelling before exact TSETMC instrument matching. */
+internal fun normalizeTsetmcSymbol(value: String): String =
+    value.trim()
+        .replace("ي", "ی")
+        .replace("ى", "ی")
+        .replace("ك", "ک")
+        .replace("\u200c", "")
+        .replace(Regex("\\s+"), "")
+        .lowercase(java.util.Locale.ROOT)
+
+/** Select only an exact symbol match; search ranking must never silently choose a different instrument. */
+internal fun selectExactTsetmcInstrumentCode(rows: JSONArray, requestedSymbol: String): String? {
+    val requested = normalizeTsetmcSymbol(requestedSymbol)
+    if (requested.isBlank()) return null
+    for (index in 0 until rows.length()) {
+        val row = rows.optJSONObject(index) ?: continue
+        val symbol = sequenceOf("lVal18AFC", "lval18afc", "symbol", "Symbol", "instrumentName", "InstrumentName")
+            .map { row.optString(it).trim() }
+            .firstOrNull { it.isNotBlank() && it != "null" } ?: continue
+        if (normalizeTsetmcSymbol(symbol) != requested) continue
+        val code = row.optString("insCode").trim()
+        if (code.isNotBlank() && code != "null") return code
+    }
+    return null
+}
+
 /** Best-effort public instrument fundamentals (EPS/P-E) from TSETMC; never marks missing fields as zero. */
 object TsetmcFundamentalApi {
     private const val BASE = "https://cdn.tsetmc.com/api"
@@ -341,8 +367,8 @@ object TsetmcFundamentalApi {
     fun fetch(symbol: String): TsetmcFundamentalMetrics {
         val search = get("$BASE/Instrument/GetInstrumentSearch/${URLEncoder.encode(symbol, "UTF-8")}")
         val rows = search.optJSONArray("instrumentSearch") ?: JSONArray()
-        val code = rows.optJSONObject(0)?.optString("insCode")?.takeIf { it.isNotBlank() }
-            ?: error("کد ابزار نماد $symbol پیدا نشد")
+        val code = selectExactTsetmcInstrumentCode(rows, symbol)
+            ?: error("نماد دقیق $symbol در نتایج جستجوی TSETMC پیدا نشد؛ برای جلوگیری از نمایش اطلاعات نماد اشتباه، داده بنیادی رد شد")
         val info = get("$BASE/Instrument/GetInstrumentInfo/${URLEncoder.encode(code, "UTF-8")}")
         val obj = info.optJSONObject("instrumentInfo") ?: info
         val eps = numeric(obj, "eps", "EPS", "estimatedEPS")
