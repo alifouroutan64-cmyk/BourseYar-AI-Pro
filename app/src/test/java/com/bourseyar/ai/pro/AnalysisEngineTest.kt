@@ -154,5 +154,9 @@ class PortfolioLedgerTest {
         assertEquals(null, PortfolioLedger.calculate(listOf(
             LedgerTransaction(1, "فولاد", TransactionSide.BUY, Long.MAX_VALUE, 2)
         )))
+        assertEquals(null, PortfolioLedger.calculate(listOf(
+            LedgerTransaction(1, "فولاد", TransactionSide.BUY, 2, 100),
+            LedgerTransaction(2, "فولاد", TransactionSide.SELL, 1, 100, 101)
+        )))
     }
 }
