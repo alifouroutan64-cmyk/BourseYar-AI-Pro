@@ -36,7 +36,9 @@ object PortfolioLedger {
     fun calculate(transactions: List<LedgerTransaction>): LedgerResult? {
         if (transactions.any {
                 it.symbol.isBlank() || it.quantity <= 0 || it.unitPrice <= 0 || it.fee < 0 ||
-                    it.timestamp < 0 || runCatching { Math.multiplyExact(it.quantity, it.unitPrice) }.isFailure
+                    it.timestamp < 0 || runCatching { Math.multiplyExact(it.quantity, it.unitPrice) }.isFailure ||
+                    (it.side == TransactionSide.SELL &&
+                        (runCatching { Math.multiplyExact(it.quantity, it.unitPrice) }.getOrNull()?.let { gross -> it.fee > gross } ?: true))
             }) return null
 
         data class MutablePosition(
