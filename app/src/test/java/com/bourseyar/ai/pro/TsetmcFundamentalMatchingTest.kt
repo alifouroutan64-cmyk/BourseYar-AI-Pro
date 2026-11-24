@@ -20,9 +20,9 @@ class TsetmcFundamentalMatchingTest {
     @Test
     fun matchesArabicAndPersianLetterVariants() {
         val rows = JSONArray(
-            """[{"insCode":"123","lVal18AFC":"فولاد"}]"""
+            """[{"insCode":"123","lVal18AFC":"\\u0643\\u064A\\u0627\\u0646"}]"""
         )
-        assertEquals("123", selectExactTsetmcInstrumentCode(rows, "فولاد"))
+        assertEquals("123", selectExactTsetmcInstrumentCode(rows, "کیان"))
     }
 
     @Test
