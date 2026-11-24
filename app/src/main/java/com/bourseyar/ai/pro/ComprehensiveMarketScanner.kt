@@ -48,10 +48,15 @@ data class FundamentalSnapshot(
     val netProfitGrowthPercent: Double? = null,
     val roePercent: Double? = null,
     val debtToEquity: Double? = null,
+    val revenue: Double? = null,
+    val netProfit: Double? = null,
+    val totalAssets: Double? = null,
+    val totalEquity: Double? = null,
+    val totalLiabilities: Double? = null,
     val sourceNote: String = "کدال عمومی؛ شاخص‌های مالی فقط در صورت استخراج معتبر نمایش داده می‌شوند",
     val recentFilings: List<CodalFilingReference> = emptyList()
 ) {
-    val hasFinancialMetrics: Boolean get() = listOf(eps, pe, revenueGrowthPercent, netProfitGrowthPercent, roePercent, debtToEquity).any { it != null }
+    val hasFinancialMetrics: Boolean get() = listOf(eps, pe, revenueGrowthPercent, netProfitGrowthPercent, roePercent, debtToEquity, revenue, netProfit, totalAssets, totalEquity, totalLiabilities).any { it != null }
 }
 
 /** Accept only HTTPS links hosted by Codal; relative report paths are resolved to the official host. */
@@ -120,7 +125,7 @@ object CodalPublicApi {
             readTimeout = 15_000
             requestMethod = "GET"
             setRequestProperty("User-Agent", "Mozilla/5.0 (Android) BourseYarAIPro")
-            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Accept", "application/json,text/html,application/vnd.ms-excel,*/*")
         }
         try {
             val code = conn.responseCode
@@ -130,6 +135,46 @@ object CodalPublicApi {
             require(body.isNotBlank()) { "پاسخ خالی کدال" }
             return body
         } finally { conn.disconnect() }
+    }
+
+    /**
+     * Search once, then fetch at most one recent financial-statement workbook.
+     * Excel downloads may be blocked by geography/rate limits or use legacy binary
+     * formats; those cases stay explicitly unavailable instead of becoming zeroes.
+     */
+    fun searchFilingsWithMetrics(symbol: String, limit: Int = 20): FundamentalSnapshot {
+        val snapshot = searchFilings(symbol, limit)
+        val statement = snapshot.recentFilings.firstOrNull {
+            it.category == "صورت‌های مالی" && it.excelUrl != null
+        } ?: return snapshot.copy(sourceNote = "اطلاعیه‌ها دریافت شد؛ فایل اکسل صورت مالی در پنج اطلاعیه اخیر موجود نبود")
+
+        val extracted = runCatching {
+            val safeUrl = safeCodalExcelUrl(statement.excelUrl)
+                ?: throw IOException("پیوند اکسل رسمی معتبر نیست")
+            val body = request(safeUrl)
+            if (!body.contains("<table", ignoreCase = true)) {
+                throw IOException("فایل اکسل در قالب HTML قابل‌خواندن نبود؛ احتمالاً فایل قدیمی یا پاسخ محدودشده کدال است")
+            }
+            CodalFinancialParser.parseHtml(body)
+        }.getOrElse { error ->
+            return snapshot.copy(sourceNote = "اطلاعیه‌ها دریافت شد؛ استخراج اکسل ناموفق: ${error.message ?: "خطای نامشخص"}")
+        }
+
+        if (!extracted.hasMetrics) {
+            return snapshot.copy(sourceNote = "فایل اکسل دریافت شد، اما ردیف‌های مالی قابل‌تشخیص نبودند؛ شاخصی حدس زده نشد")
+        }
+        return snapshot.copy(
+            revenueGrowthPercent = extracted.revenueGrowthPercent,
+            netProfitGrowthPercent = extracted.netProfitGrowthPercent,
+            roePercent = extracted.returnOnEquityPercent,
+            debtToEquity = extracted.debtToEquity,
+            revenue = extracted.totalRevenue,
+            netProfit = extracted.netProfit,
+            totalAssets = extracted.totalAssets,
+            totalEquity = extracted.totalEquity,
+            totalLiabilities = extracted.totalLiabilities,
+            sourceNote = "استخراج آزمایشی از اکسل رسمی کدال؛ فقط ردیف‌های شناسایی‌شده نمایش داده می‌شوند"
+        )
     }
 
     fun searchFilings(symbol: String, limit: Int = 20): FundamentalSnapshot {
