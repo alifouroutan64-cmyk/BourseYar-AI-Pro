@@ -1,6 +1,5 @@
 package com.bourseyar.ai.pro
 
-import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -8,42 +7,25 @@ import org.junit.Test
 class TsetmcFundamentalMatchingTest {
     @Test
     fun selectsExactSymbolInsteadOfFirstSearchResult() {
-        val rows = JSONArray(
-            """[
-                {"insCode":"wrong-1","lVal18AFC":"فولادح"},
-                {"insCode":"right-2","lVal18AFC":"فولاد"}
-            ]"""
-        )
-        assertEquals("right-2", selectExactTsetmcInstrumentCode(rows, "فولاد"))
+        val instruments = listOf("فولادح" to "wrong-1", "فولاد" to "right-2")
+        assertEquals("right-2", selectExactTsetmcInstrumentCode(instruments, "فولاد"))
     }
 
     @Test
     fun matchesArabicAndPersianLetterVariants() {
-        val rows = JSONArray(
-            """[{"insCode":"123","lVal18AFC":"\\u0643\\u064A\\u0627\\u0646"}]"""
-        )
-        assertEquals("123", selectExactTsetmcInstrumentCode(rows, "کیان"))
+        val instruments = listOf("\u0643\u064A\u0627\u0646" to "123")
+        assertEquals("123", selectExactTsetmcInstrumentCode(instruments, "کیان"))
     }
 
     @Test
     fun rejectsPrefixAndCompanyNameOnlyMatches() {
-        val rows = JSONArray(
-            """[
-                {"insCode":"1","lVal18AFC":"فولادح"},
-                {"insCode":"2","lVal30":"شرکت فولاد مبارکه"}
-            ]"""
-        )
-        assertNull(selectExactTsetmcInstrumentCode(rows, "فولاد"))
+        val instruments = listOf("فولادح" to "1")
+        assertNull(selectExactTsetmcInstrumentCode(instruments, "فولاد"))
     }
 
     @Test
     fun ignoresRowsWithoutUsableInstrumentCode() {
-        val rows = JSONArray(
-            """[
-                {"insCode":"","lVal18AFC":"فولاد"},
-                {"lVal18AFC":"فولاد"}
-            ]"""
-        )
-        assertNull(selectExactTsetmcInstrumentCode(rows, "فولاد"))
+        val instruments = listOf("فولاد" to "", "فولاد" to "null")
+        assertNull(selectExactTsetmcInstrumentCode(instruments, "فولاد"))
     }
 }
