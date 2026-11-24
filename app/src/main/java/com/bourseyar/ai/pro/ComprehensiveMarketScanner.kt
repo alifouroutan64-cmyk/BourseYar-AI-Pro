@@ -16,7 +16,9 @@ data class CodalFilingReference(
     val title: String,
     val publishDate: String?,
     val url: String?,
-    val category: String = classifyCodalFiling(title)
+    val category: String = classifyCodalFiling(title),
+    val excelUrl: String? = null,
+    val hasExcel: Boolean = excelUrl != null
 )
 
 /** Title-only filing classification. It labels the notice; it does not infer financial values. */
@@ -64,6 +66,20 @@ internal fun safeCodalUrl(rawUrl: String?): String? {
                 (parsed.port == -1 || parsed.port == 443) &&
                 (parsed.host.equals("codal.ir", ignoreCase = true) ||
                     parsed.host.endsWith(".codal.ir", ignoreCase = true))
+        }
+    }.getOrNull()
+}
+
+/** Excel files are served from Codal's dedicated official host; reject redirects/host spoofing in supplied URLs. */
+internal fun safeCodalExcelUrl(rawUrl: String?): String? {
+    val candidate = rawUrl?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
+    return runCatching {
+        val parsed = URL(candidate)
+        candidate.takeIf {
+            parsed.protocol.equals("https", ignoreCase = true) &&
+                parsed.userInfo == null &&
+                (parsed.port == -1 || parsed.port == 443) &&
+                parsed.host.equals("excel.codal.ir", ignoreCase = true)
         }
     }.getOrNull()
 }
@@ -143,10 +159,14 @@ object CodalPublicApi {
                         .map { row.optString(it).trim() }
                         .firstOrNull { it.isNotBlank() && it != "null" }
                     val safeUrl = safeCodalUrl(rawUrl)
+                    val rawExcelUrl = sequenceOf("ExcelUrl", "excelUrl", "ExcelURL", "excelURL")
+                        .map { row.optString(it).trim() }
+                        .firstOrNull { it.isNotBlank() && it != "null" }
+                    val safeExcelUrl = safeCodalExcelUrl(rawExcelUrl)
                     val date = sequenceOf("PublishDateTime", "publishDateTime", "SentDateTime", "sentDateTime", "PublishDate")
                         .map { row.optString(it).trim() }
                         .firstOrNull { it.isNotBlank() && it != "null" }
-                    references += CodalFilingReference(title, date, safeUrl)
+                    references += CodalFilingReference(title, date, safeUrl, excelUrl = safeExcelUrl)
                 }
                 if (rows.length() > 0 || root.has("Letters") || root.has("items") || root.has("data")) {
                     val total = sequenceOf("Total", "total", "TotalCount", "totalCount", "Count", "count")
