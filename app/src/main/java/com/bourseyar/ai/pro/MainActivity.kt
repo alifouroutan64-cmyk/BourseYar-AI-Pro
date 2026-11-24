@@ -343,12 +343,34 @@ class MainActivity : Activity() {
                                 isEnabled = true
                                 text = "جستجوی اطلاعیه‌های کدال برای نماد"
                                 val filing = result.getOrNull()
-                                resultText.text = if (filing != null) {
-                                    "نماد: ${filing.symbol}\nتعداد اطلاعیه‌های بازگشتی: ${filing.filingsFound}\n\n" +
-                                        filing.recentFilingTitles.mapIndexed { index, title -> "${index + 1}. $title" }.joinToString("\n").ifBlank { "عنوان اطلاعیه‌ای از پاسخ کدال استخراج نشد." } +
-                                        "\n\nاین بخش فقط عنوان اطلاعیه‌ها را جستجو می‌کند؛ هنوز صورت‌های مالی و نسبت‌های بنیادی از متن گزارش‌ها استخراج نشده‌اند."
+                                if (filing != null) {
+                                    val content = android.text.SpannableStringBuilder()
+                                    content.append("نماد: ${filing.symbol}\nتعداد اطلاعیه‌های بازگشتی: ${filing.filingsFound}\n\n")
+                                    if (filing.recentFilings.isNotEmpty()) {
+                                        filing.recentFilings.forEachIndexed { index, item ->
+                                            val start = content.length
+                                            content.append("${index + 1}. ${item.title}")
+                                            item.publishDate?.let { content.append(" | $it") }
+                                            item.url?.let { url ->
+                                                content.setSpan(
+                                                    android.text.style.URLSpan(url),
+                                                    start,
+                                                    content.length,
+                                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                                                )
+                                            }
+                                            content.append("\n")
+                                        }
+                                    } else {
+                                        content.append(filing.recentFilingTitles.mapIndexed { index, title -> "${index + 1}. $title" }
+                                            .joinToString("\n").ifBlank { "عنوان اطلاعیه‌ای از پاسخ کدال استخراج نشد." })
+                                    }
+                                    content.append("\nلینک‌های قابل کلیک فقط به دامنه امن codal.ir محدود شده‌اند.")
+                                    content.append("\n\nاین بخش فهرست اطلاعیه‌ها را نمایش می‌دهد؛ هنوز ارقام صورت‌های مالی از متن گزارش‌ها استخراج نشده‌اند.")
+                                    resultText.text = content
+                                    resultText.movementMethod = android.text.method.LinkMovementMethod.getInstance()
                                 } else {
-                                    "جستجوی کدال ناموفق بود: ${result.exceptionOrNull()?.message ?: "خطای نامشخص"}"
+                                    resultText.text = "جستجوی کدال ناموفق بود: ${result.exceptionOrNull()?.message ?: "خطای نامشخص"}"
                                 }
                             }
                         }.start()
