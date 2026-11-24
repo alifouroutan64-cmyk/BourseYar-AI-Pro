@@ -10,10 +10,28 @@ import org.json.JSONObject
 import java.text.NumberFormat
 import java.util.Locale
 
+private fun safeMultiply(a: Long, b: Long): Long = try {
+    Math.multiplyExact(a, b)
+} catch (_: ArithmeticException) {
+    Long.MAX_VALUE
+}
+
+private fun safeAdd(a: Long, b: Long): Long = try {
+    Math.addExact(a, b)
+} catch (_: ArithmeticException) {
+    if (a >= 0 && b >= 0) Long.MAX_VALUE else Long.MIN_VALUE
+}
+
+private fun safeSubtract(a: Long, b: Long): Long = try {
+    Math.subtractExact(a, b)
+} catch (_: ArithmeticException) {
+    if (a >= 0 && b < 0) Long.MAX_VALUE else Long.MIN_VALUE
+}
+
 data class PortfolioHolding(val symbol:String,val shares:Long,val buyPrice:Long,val currentPrice:Long,val stopLoss:Long=0) {
-    val cost:Long get()=shares*buyPrice
-    val value:Long get()=shares*currentPrice
-    val pnl:Long get()=value-cost
+    val cost:Long get()=safeMultiply(shares,buyPrice)
+    val value:Long get()=safeMultiply(shares,currentPrice)
+    val pnl:Long get()=safeSubtract(value,cost)
     val returnPercent:Double get()=if(cost>0) pnl.toDouble()*100/cost else 0.0
 }
 class PortfolioActivity:Activity() {
@@ -37,7 +55,7 @@ class PortfolioActivity:Activity() {
         text=s; textSize=size; setTextColor(color); if(bold)setTypeface(null,1); setPadding(6,8,6,8)
     }
     private fun render() {
-        val data=load(); val total=data.sumOf{it.value}; val cost=data.sumOf{it.cost}; val pnl=total-cost
+        val data=load(); val total=data.fold(0L){sum,h->safeAdd(sum,h.value)}; val cost=data.fold(0L){sum,h->safeAdd(sum,h.cost)}; val pnl=safeSubtract(total,cost)
         val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(16,18,16,12);setBackgroundColor(bg)}
         root.addView(text("سبد سهام من",24f,0xFFFFFFFF.toInt(),true))
         root.addView(text("ارزش روز: "+fmt(total)+" ریال",19f,0xFFFFFFFF.toInt(),true))
@@ -120,7 +138,7 @@ class PortfolioActivity:Activity() {
                             val quantity = qtyInput.text.toString().toLongOrNull() ?: 0L
                             val price = best.optDouble("price").toLong()
                             val stop = best.optDouble("stop").toLong()
-                            if (quantity > 0 && price > 0) {
+                            if (quantity > 0 && price > 0 && runCatching { Math.multiplyExact(quantity, price) }.isSuccess) {
                                 save(load().filterNot { it.symbol.equals(best.optString("symbol"), true) } +
                                     PortfolioHolding(best.optString("symbol"), quantity, price, price, stop))
                             } else Toast.makeText(this@PortfolioActivity, "تعداد معتبر وارد کنید", Toast.LENGTH_SHORT).show()
@@ -172,8 +190,8 @@ class PortfolioActivity:Activity() {
             .setNegativeButton("لغو",null).setPositiveButton("ذخیره"){_,_->
                 val s=symbol.text.toString().trim().uppercase(Locale.ROOT); val q=qty.text.toString().toLongOrNull()?:0
                 val b=buy.text.toString().toLongOrNull()?:0; val c=current.text.toString().toLongOrNull()?:0; val sl=stop.text.toString().toLongOrNull()?:0
-                if(s.isNotBlank()&&q>0&&b>0&&c>0) save(load().filterNot{it.symbol.equals(s,true)}+PortfolioHolding(s,q,b,c,sl))
-                else Toast.makeText(this,"اطلاعات معتبر وارد کنید.",Toast.LENGTH_SHORT).show()
+                if(s.isNotBlank()&&q>0&&b>0&&c>0&&sl>=0&&runCatching { Math.multiplyExact(q,b); Math.multiplyExact(q,c) }.isSuccess) save(load().filterNot{it.symbol.equals(s,true)}+PortfolioHolding(s,q,b,c,sl))
+                else Toast.makeText(this,"اطلاعات معتبر وارد کنید؛ حاصل تعداد در قیمت نباید از ظرفیت عددی بیشتر شود.",Toast.LENGTH_LONG).show()
             }.show()
     }
 }
