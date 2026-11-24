@@ -154,7 +154,8 @@ object ComprehensiveMarketScanner {
                 val firstLevel = snapshot?.orderBook?.firstOrNull()
                 val isQueue = firstLevel?.let { (it.bidPrice ?: 0.0) > 0 && (it.askPrice ?: 0.0) <= 0 } ?: false
                 val tooExtended = technical.report.rsi?.let { it >= 78.0 } ?: false
-                // Unknown relative volume is not evidence of illiquidity; the warning above records missing confirmation.\n                val lowLiquidity = leader.tradedValue <= 0 || (relativeVolume != null && relativeVolume < 0.4)
+                // Unknown relative volume is not evidence of illiquidity; the warning above records missing confirmation.
+                val lowLiquidity = leader.tradedValue <= 0 || (relativeVolume != null && relativeVolume < 0.4)
                 val reason = when {
                     isQueue -> "صف خرید/عدم امکان ورود تأیید شده؛ از پیشنهاد خرید حذف شد"
                     tooExtended -> "RSI بیش از حد بالا؛ از ورود دیرهنگام جلوگیری شد"
