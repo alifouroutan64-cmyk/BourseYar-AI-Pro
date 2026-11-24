@@ -107,13 +107,8 @@ object ComprehensiveMarketScanner {
             try {
                 val history = TsetmcHistoryProvider.fetchDaily(leader.symbol)
                 val technical = AnalysisEngine.scanCandles(leader.symbol, history.candles, 0.0) ?: return@forEachIndexed
-                // Compare today with up to 20 prior valid sessions; require 10 valid observations.
-                val volumes = history.candles.dropLast(1).takeLast(20).map { it.volume }
-                    .filter { it.isFinite() && it > 0.0 }
-                val currentVolume = history.candles.last().volume
-                val averageVolume = if (volumes.size >= 10) volumes.average() else 0.0
-                val relativeVolume = if (averageVolume > 0.0 && currentVolume.isFinite() && currentVolume > 0.0)
-                    currentVolume / averageVolume else null
+                // Shared validated volume logic: 20 prior sessions, at least 10 valid.
+                val relativeVolume = VolumeAnalysis.analyze(history.candles)?.relativeVolume
                 val flow = runCatching { TsetmcHistoryProvider.fetchFiveSessionFlowScore(leader.symbol) }.getOrNull()
                 val snapshot = runCatching { TsetmcHistoryProvider.fetchLiveSnapshot(leader.symbol) }.getOrNull()
                 val quote = snapshot?.quote
