@@ -48,6 +48,12 @@ object TsetmcHistoryProvider {
 
     private fun get(url: String): String = TsetmcHttpClient.get(url)
 
+    private fun resolveInstrumentCode(symbol: String): String {
+        val query = URLEncoder.encode(symbol.trim(), "UTF-8")
+        val response = get("$BASE/Instrument/GetInstrumentSearch/$query")
+        return TsetmcInstrumentResolver.resolve(symbol, response)
+    }
+
     private fun validChartDate(value: String): Boolean {
         if (!value.matches(Regex("\\d{8}"))) return false
         val parser = SimpleDateFormat("yyyyMMdd", Locale.US).apply {
@@ -195,17 +201,7 @@ object TsetmcHistoryProvider {
 
     /** Fetch a conservative five-session money-flow score for a symbol; null means unavailable. */
     fun fetchFiveSessionFlowScore(symbol: String): Int? {
-        val query = URLEncoder.encode(symbol.trim(), "UTF-8")
-        val search = JSONObject(get("$BASE/Instrument/GetInstrumentSearch/$query"))
-        val items = search.optJSONArray("instrumentSearch")
-            ?: error("ساختار جستجوی نماد برای جریان پول تغییر کرده است")
-        val normalized = symbol.trim().replace("ي", "ی").replace("ك", "ک")
-        val match = (0 until items.length()).map { items.getJSONObject(it) }
-            .firstOrNull {
-                it.optString("lVal18AFC").replace("ي", "ی").replace("ك", "ک") == normalized
-            } ?: return null
-        val code = match.optString("insCode")
-        if (code.isBlank()) return null
+        val code = runCatching { resolveInstrumentCode(symbol) }.getOrNull() ?: return null
         val days = fetchClientFlowHistory(code).takeLast(5)
         val valid = days.mapNotNull { day ->
             val net = day.netIndividualValue
@@ -222,16 +218,7 @@ object TsetmcHistoryProvider {
 
     /** One-symbol live dashboard: quote, five-level book, recent trades and client flow. */
     fun fetchLiveSnapshot(symbol: String): InstrumentLiveSnapshot {
-        val query = URLEncoder.encode(symbol.trim(), "UTF-8")
-        val search = JSONObject(get("$BASE/Instrument/GetInstrumentSearch/$query"))
-        val items = search.optJSONArray("instrumentSearch")
-            ?: error("ساختار جستجوی نماد TSETMC تغییر کرده است")
-        val normalized = symbol.trim().replace("ي", "ی").replace("ك", "ک")
-        val match = (0 until items.length()).map { items.getJSONObject(it) }
-            .firstOrNull { it.optString("lVal18AFC").replace("ي", "ی").replace("ك", "ک") == normalized }
-            ?: error("نماد دقیق «$symbol» پیدا نشد")
-        val code = match.optString("insCode")
-        require(code.matches(Regex("\\d{5,25}"))) { "کد معاملاتی نماد نامعتبر است" }
+        val code = resolveInstrumentCode(symbol)
 
         val quoteRoot = JSONObject(get("$BASE/ClosingPrice/GetClosingPriceInfo/$code"))
         val quote = quoteRoot.optJSONObject("closingPriceInfo")
@@ -296,17 +283,7 @@ object TsetmcHistoryProvider {
     }
 
     fun fetchDaily(symbol: String): HistoricalSeries {
-        val query = URLEncoder.encode(symbol.trim(), "UTF-8")
-        val search = JSONObject(get("$BASE/Instrument/GetInstrumentSearch/$query"))
-        val items = search.optJSONArray("instrumentSearch")
-            ?: error("ساختار پاسخ جستجوی نماد تغییر کرده است")
-        val normalized = symbol.trim().replace("ي", "ی").replace("ك", "ک")
-        val match = (0 until items.length()).map { items.getJSONObject(it) }
-            .firstOrNull {
-                it.optString("lVal18AFC").replace("ي", "ی").replace("ك", "ک") == normalized
-            } ?: error("نماد دقیق «$symbol» در جستجوی TSETMC پیدا نشد")
-        val code = match.optString("insCode")
-        require(code.matches(Regex("\\d{5,25}"))) { "کد معاملاتی نماد نامعتبر است" }
+        val code = resolveInstrumentCode(symbol)
         val raw = get("$CHART?i=$code&t=ph&a=1")
         return TsetmcDailyHistoryParser.parse(symbol, raw)
     }
