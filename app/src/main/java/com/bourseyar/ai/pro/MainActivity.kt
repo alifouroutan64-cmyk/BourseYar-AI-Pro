@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -14,9 +16,11 @@ import java.net.URL
 import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
-    private val bg = Color.rgb(13, 24, 38)
-    private val panel = Color.rgb(24, 40, 58)
-    private val accent = Color.rgb(255, 202, 92)
+    private val bg = Color.rgb(7, 16, 31)
+    private val panel = Color.rgb(17, 32, 53)
+    private val accent = Color.rgb(53, 211, 190)
+    private val muted = Color.rgb(157, 178, 201)
+    private val borderColor = Color.rgb(39, 62, 87)
     private lateinit var body: LinearLayout
     private lateinit var status: TextView
     private val prefs by lazy { getSharedPreferences("bourseyar", MODE_PRIVATE) }
@@ -37,39 +41,130 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = bg; window.navigationBarColor = bg
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(18, 20, 18, 12); setBackgroundColor(bg) }
-        val title = label("بورس‌یار AI Pro", 25f, Color.WHITE, true)
-        title.gravity = Gravity.CENTER
-        status = label("نسخه توسعه‌ای | داده بازار هنوز اعتبارسنجی نشده", 12f, accent)
-        status.gravity = Gravity.CENTER
+        window.statusBarColor = bg
+        window.navigationBarColor = bg
+        window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
+        window.statusBarColor = Color.rgb(5, 12, 24)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 14, 16, 8)
+            background = rounded(intArrayOf(Color.rgb(8, 19, 36), bg), 0, 0, 0, 0)
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 14, 16, 12)
+            background = rounded(intArrayOf(Color.rgb(23, 53, 75), Color.rgb(13, 34, 55)), 22)
+            elevation = 5f
+        }
+        val brandRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val mark = label("◈", 30f, accent, true).apply { gravity = Gravity.CENTER; setPadding(0, 0, 12, 0) }
+        val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        brand.addView(label("بورس‌یار", 23f, Color.WHITE, true).apply { setPadding(0, 0, 0, 0) })
+        brand.addView(label("AI PRO  •  SMART MARKET", 10f, muted, true).apply { setPadding(0, 2, 0, 0) })
+        brandRow.addView(mark)
+        brandRow.addView(brand)
+        header.addView(brandRow)
+        status = label("●  اتصال و داده بازار در حال بررسی", 11f, accent, true).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 12, 0, 0)
+        }
+        header.addView(status)
+        val navScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setPadding(0, 12, 0, 10)
+        }
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         listOf("بازار", "تابلو", "تحلیل", "اسکنر", "سبد", "راهنما").forEach { name ->
-            nav.addView(Button(this).apply { text = name; textSize = 11f; setOnClickListener {
-                if (name == "سبد") startActivity(android.content.Intent(this@MainActivity, PortfolioActivity::class.java)) else show(name)
-            } }, LinearLayout.LayoutParams(0, -2, 1f))
+            val item = Button(this).apply {
+                text = name
+                textSize = 12f
+                minWidth = 0
+                setPadding(13, 4, 13, 4)
+                setOnClickListener {
+                    if (name == "سبد") startActivity(android.content.Intent(this@MainActivity, PortfolioActivity::class.java)) else show(name)
+                }
+            }
+            nav.addView(item, LinearLayout.LayoutParams(-2, 46).apply { setMargins(3, 0, 3, 0) })
         }
-        body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        navScroll.addView(nav)
+        body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 4, 0, 18) }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
-            isVerticalScrollBarEnabled = true
+            isVerticalScrollBarEnabled = false
             isSmoothScrollingEnabled = true
+            clipToPadding = false
             addView(body)
         }
-        root.addView(title); root.addView(status); root.addView(nav)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        header.addView(navScroll)
+        root.addView(header)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 12 })
         setContentView(root)
         show("بازار")
+        styleTree(root)
     }
 
+    private fun rounded(colors: IntArray, radiusDp: Int, strokeDp: Int = 0, strokeColor: Int = borderColor, topLeft: Int = radiusDp): GradientDrawable =
+        GradientDrawable(GradientDrawable.Orientation.TL_BR, colors).apply {
+            cornerRadius = radiusDp * resources.displayMetrics.density
+            if (strokeDp > 0) setStroke((strokeDp * resources.displayMetrics.density).toInt(), strokeColor)
+        }
+
     private fun label(value: String, size: Float, color: Int, bold: Boolean = false) =
-        TextView(this).apply { text = value; textSize = size; setTextColor(color); if (bold) setTypeface(null, 1); setPadding(8, 8, 8, 8) }
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+            typeface = if (bold) Typeface.create("sans-serif-medium", Typeface.NORMAL) else Typeface.create("sans-serif", Typeface.NORMAL)
+            setPadding(8, 8, 8, 8)
+            gravity = Gravity.CENTER_VERTICAL
+            setTextIsSelectable(true)
+        }
+
+    private fun styleTree(view: View) {
+        when (view) {
+            is Button -> {
+                view.isAllCaps = false
+                view.textSize = 12f
+                view.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                view.setTextColor(Color.WHITE)
+                view.background = rounded(intArrayOf(Color.rgb(27, 91, 112), Color.rgb(18, 64, 87)), 14, 1, Color.rgb(48, 123, 139))
+                view.elevation = 2f
+                view.minimumHeight = (44 * resources.displayMetrics.density).toInt()
+                view.setPadding(12, 6, 12, 6)
+            }
+            is EditText -> {
+                view.textSize = 14f
+                view.setTextColor(Color.WHITE)
+                view.setHintTextColor(muted)
+                view.background = rounded(intArrayOf(Color.rgb(13, 27, 45), Color.rgb(13, 27, 45)), 13, 1)
+                view.setPadding(14, 12, 14, 12)
+            }
+            is TextView -> {
+                view.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                view.setTextColor(if (view.currentTextColor == Color.LTGRAY) muted else view.currentTextColor)
+                view.setLineSpacing(2f, 1.06f)
+            }
+            is LinearLayout -> {
+                if (view.childCount == 2 && view.getChildAt(0) is TextView && view.getChildAt(1) is TextView) {
+                    view.background = rounded(intArrayOf(Color.rgb(21, 39, 61), Color.rgb(15, 30, 49)), 18, 1)
+                    view.setPadding(13, 12, 13, 12)
+                    view.elevation = 2f
+                }
+            }
+        }
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) styleTree(view.getChildAt(i))
+        }
+    }
 
     private fun card(title: String, text: String) {
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12, 10, 12, 10); setBackgroundColor(panel) }
-        box.addView(label(title, 17f, accent, true))
-        box.addView(label(text, 14f, Color.WHITE))
-        val lp = LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 8, 0, 8); body.addView(box, lp)
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12, 10, 12, 10) }
+        box.addView(label(title, 16f, accent, true))
+        box.addView(label(text, 13.5f, Color.rgb(224, 234, 245)))
+        val lp = LinearLayout.LayoutParams(-1, -2)
+        lp.setMargins(0, 6, 0, 8)
+        body.addView(box, lp)
+        styleTree(box)
     }
 
     override fun onStart() {
@@ -244,28 +339,168 @@ class MainActivity : Activity() {
                 startDashboardPolling()
             }
             "تحلیل" -> {
-                card("تحلیل تکنیکال", "محاسبه‌گر RSI(14)، EMA20/50، MACD، ATR و حمایت/مقاومت برای سری کندل‌های معتبر در موتور تحلیل اضافه شده است. تا زمان اتصال منبع تاریخچه OHLC معتبر، تحلیل نماد واقعی ارائه نمی‌شود.")
-                val prices = EditText(this).apply { hint = "قیمت‌های پایانی با کاما جدا شوند؛ مثال: 100,102,101"; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY) }
-                val highs = EditText(this).apply { hint = "اختیاری: سقف‌ها با کاما"; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY) }
-                val lows = EditText(this).apply { hint = "اختیاری: کف‌ها با کاما"; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY) }
-                body.addView(prices); body.addView(highs); body.addView(lows)
+                card("تحلیل تکنیکال نماد", "نام نماد را وارد کنید تا تاریخچه روزانه OHLCV از TSETMC دریافت و شاخص‌ها به‌صورت خودکار محاسبه شوند. حداقل ۵۰ کندل معتبر لازم است.")
+                val symbolInput = EditText(this).apply {
+                    hint = "نماد؛ مثال: فولاد"
+                    setText("فولاد")
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.LTGRAY)
+                    isSingleLine = true
+                }
+                body.addView(symbolInput)
+                val feeInput = EditText(this).apply {
+                    hint = "کارمزد رفت‌وبرگشت بک‌تست (واحد پایه؛ پیش‌فرض ۳۰)"
+                    setText("30")
+                    inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.LTGRAY)
+                    isSingleLine = true
+                }
+                body.addView(feeInput)
+                val resultText = label("برای دریافت تحلیل، نماد را وارد و دکمه را بزنید.", 13f, Color.WHITE)
                 body.addView(Button(this).apply {
-                    text = "محاسبه شاخص‌ها"
+                    text = "دریافت تاریخچه و تحلیل خودکار"
                     setOnClickListener {
-                        try {
-                            val close = prices.text.toString().split(",").map { it.trim().toDouble() }
-                            val hi = highs.text.toString().takeIf { it.isNotBlank() }?.split(",")?.map { it.trim().toDouble() }
-                            val lo = lows.text.toString().takeIf { it.isNotBlank() }?.split(",")?.map { it.trim().toDouble() }
-                            require(close.size >= 20) { "حداقل ۲۰ قیمت پایانی وارد کنید" }
-                            require(hi == null || hi.size == close.size) { "تعداد سقف‌ها باید با قیمت‌ها برابر باشد" }
-                            require(lo == null || lo.size == close.size) { "تعداد کف‌ها باید با قیمت‌ها برابر باشد" }
-                            val candles = close.indices.map { i -> Candle(close[i], hi?.get(i) ?: close[i], lo?.get(i) ?: close[i]) }
-                            val r = AnalysisEngine.analyze(candles) ?: error("داده کافی نیست")
-                            card("نتیجه محاسبه (داده ورودی شما)", "آخرین قیمت: ${r.last}\nروند: ${r.trend}\nامتیاز قواعدی: ${r.score}/100\nRSI: ${r.rsi ?: "—"}\nEMA20: ${r.ema20 ?: "—"}\nEMA50: ${r.ema50 ?: "—"}\nMACD: ${r.macd ?: "—"}\nATR: ${r.atr ?: "—"}\nحمایت تقریبی: ${r.support}\nمقاومت تقریبی: ${r.resistance}\n\n" + r.notes.joinToString("\n"))
-                        } catch (e: Exception) { card("ورودی نامعتبر", e.message ?: "قیمت‌ها را بررسی کنید") }
+                        val symbol = symbolInput.text.toString().trim()
+                        if (symbol.isBlank()) {
+                            resultText.text = "ابتدا نام نماد را وارد کنید."
+                            return@setOnClickListener
+                        }
+                        val feeBps = feeInput.text.toString().toDoubleOrNull()
+                            ?.takeIf { it.isFinite() && it >= 0.0 }
+                        if (feeBps == null) {
+                            resultText.text = "کارمزد رفت‌وبرگشت باید عدد نامنفی باشد."
+                            return@setOnClickListener
+                        }
+                        isEnabled = false
+                        text = "در حال دریافت تاریخچه…"
+                        resultText.text = "در حال دریافت کندل‌های روزانه $symbol از TSETMC…"
+                        Thread {
+                            val result = runCatching {
+                                val history = TsetmcHistoryProvider.fetchDaily(symbol)
+                                val report = AnalysisEngine.analyze(history.candles)
+                                    ?: error("برای محاسبه شاخص‌ها داده کافی نیست")
+                                val backtest = AnalysisEngine.backtest(history.candles, 70, feeBps)
+                                val backtestText = if (backtest.isEmpty() || backtest.all { it.trades == 0 }) {
+                                    "بک‌تست: داده کافی یا معامله واجد شرایط وجود ندارد؛ حداقل ۶۰ کندل معتبر لازم است."
+                                } else {
+                                    "بک‌تست walk-forward با حداقل امتیاز ۷۰/۱۰۰:\n" + backtest.joinToString("\n") { b ->
+                                        "${b.holdingDays} جلسه | ${b.trades} معامله | برد %.1f%% | میانگین بازده %.2f%% | ضریب سود %s | افت سرمایه %.2f%%".format(
+                                            java.util.Locale.US, b.winRatePercent, b.averageReturnPercent,
+                                            if (b.profitFactor.isFinite()) "%.2f".format(java.util.Locale.US, b.profitFactor) else "بدون زیان",
+                                            b.maxDrawdownPercent)
+                                    } + "\nکارمزد رفت‌وبرگشت: $feeBps واحد پایه؛ در هر افق فقط یک موقعیت هم‌زمان شبیه‌سازی می‌شود؛ ورود بعدی پس از خروج قبلی است."
+                                }
+                                val volume = VolumeAnalysis.analyze(history.candles)
+                                val volumeText = volume?.let {
+                                    "حجم آخرین کندل: %.0f سهم\nمیانگین حجم تا ۲۰ جلسه قبل: %.0f سهم\nحجم نسبی: %.2fx\nجلسات معتبر در میانگین: %d"
+                                        .format(java.util.Locale.US, it.currentVolume, it.averagePriorVolume, it.relativeVolume, it.validPriorSessions)
+                                } ?: "تحلیل حجم: ناموجود؛ حداقل ۱۰ جلسه معتبر و حجم مثبت لازم است"
+                                val details = "نماد: ${history.symbol}\nتعداد کندل معتبر: ${history.candles.size}\n" +
+                                    "آخرین قیمت پایانی تعدیل‌شده: ${"%.0f".format(java.util.Locale.US, report.last)}\n" +
+                                    "روند: ${report.trend} | امتیاز تکنیکال: ${report.score}/100\n" +
+                                    "RSI(14): ${report.rsi?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "EMA20: ${report.ema20?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "EMA50: ${report.ema50?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "MACD: ${report.macd?.let { "%.4f".format(java.util.Locale.US, it) } ?: "—"} | سیگنال: ${report.macdSignal?.let { "%.4f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "ATR(14): ${report.atr?.let { "%.2f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "حمایت تقریبی ۲۰ جلسه: ${report.support?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n" +
+                                    "مقاومت تقریبی ۲۰ جلسه: ${report.resistance?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—"}\n\n" +
+                                    volumeText + "\n\n" + backtestText + "\n\n" + report.notes.joinToString("\n") +
+                                    "\n\nتوجه: تاریخچه نمودار TSETMC با قیمت تعدیل‌شده دریافت می‌شود؛ قیمت فعلی تابلو ممکن است با قیمت تعدیل‌شده تاریخی متفاوت باشد. این خروجی توصیه خرید یا فروش نیست."
+                                history.symbol to details
+                            }
+                            runOnUiThread {
+                                isEnabled = true
+                                text = "دریافت تاریخچه و تحلیل خودکار"
+                                resultText.text = result.getOrNull()?.second
+                                    ?: "تحلیل نماد انجام نشد: ${result.exceptionOrNull()?.message ?: "خطای نامشخص"}"
+                                status.text = if (result.isSuccess) "تحلیل تاریخی ${result.getOrNull()?.first} دریافت شد" else "دریافت تاریخچه تحلیل ناموفق"
+                            }
+                        }.start()
                     }
                 })
-                card("هشدار", "امتیاز الگوریتمی احتمال موفقیت را تضمین نمی‌کند و توصیه خرید/فروش نیست. برای سیگنال معتبر، تاریخچه تعدیل‌شده و داده حجم/معاملات لازم است.")
+                body.addView(resultText)
+                body.addView(Button(this).apply {
+                    text = "جستجوی اطلاعیه‌های کدال برای نماد"
+                    setOnClickListener {
+                        val symbol = symbolInput.text.toString().trim()
+                        if (symbol.isBlank()) {
+                            resultText.text = "ابتدا نماد را وارد کنید."
+                            return@setOnClickListener
+                        }
+                        isEnabled = false
+                        text = "در حال جستجو در کدال…"
+                        resultText.text = "در حال دریافت اطلاعیه‌های منتشرشده برای $symbol…"
+                        Thread {
+                            val result = runCatching { CodalPublicApi.searchFilingsWithMetrics(symbol, 30) }
+                            runOnUiThread {
+                                isEnabled = true
+                                text = "جستجوی اطلاعیه‌های کدال برای نماد"
+                                val filing = result.getOrNull()
+                                if (filing != null) {
+                                    val content = android.text.SpannableStringBuilder()
+                                    content.append("نماد: ${filing.symbol}\nتعداد اطلاعیه‌های بازگشتی: ${filing.filingsFound}\n\n")
+                                    if (filing.recentFilings.isNotEmpty()) {
+                                        filing.recentFilings.forEachIndexed { index, item ->
+                                            val start = content.length
+                                            content.append("${index + 1}. [${item.category}] ${item.title}")
+                                            item.publishDate?.let { content.append(" | $it") }
+                                            item.url?.let { url ->
+                                                content.setSpan(
+                                                    android.text.style.URLSpan(url),
+                                                    start,
+                                                    content.length,
+                                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                                                )
+                                            }
+                                            item.excelUrl?.let { excelUrl ->
+                                                val excelStart = content.length
+                                                content.append(" | دریافت اکسل رسمی")
+                                                content.setSpan(
+                                                    android.text.style.URLSpan(excelUrl),
+                                                    excelStart,
+                                                    content.length,
+                                                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                                                )
+                                            }
+                                            content.append("\n")
+                                        }
+                                    } else {
+                                        content.append(filing.recentFilingTitles.mapIndexed { index, title -> "${index + 1}. $title" }
+                                            .joinToString("\n").ifBlank { "عنوان اطلاعیه‌ای از پاسخ کدال استخراج نشد." })
+                                    }
+                                    content.append("\nپیوند صفحه گزارش فقط به دامنه امن codal.ir و پیوند اکسل فقط به میزبان رسمی excel.codal.ir محدود شده‌اند.")
+                                    content.append("\n\nوضعیت داده بنیادی: ${filing.sourceNote}")
+                                    val financialMetrics = listOfNotNull(
+                                        filing.revenueGrowthPercent?.let { "رشد درآمد: ${"%+.2f%%".format(java.util.Locale.US, it)}" },
+                                        filing.netProfitGrowthPercent?.let { "رشد سود خالص: ${"%+.2f%%".format(java.util.Locale.US, it)}" },
+                                        filing.roePercent?.let { "بازده حقوق مالکانه تقریبی: ${"%.2f%%".format(java.util.Locale.US, it)}" },
+                                        filing.debtToEquity?.let { "نسبت بدهی به حقوق مالکانه: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.revenue?.let { "درآمد عملیاتی: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.netProfit?.let { "سود خالص: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.totalAssets?.let { "جمع دارایی‌ها: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.totalEquity?.let { "جمع حقوق مالکانه: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.totalLiabilities?.let { "جمع بدهی‌ها: ${"%.2f".format(java.util.Locale.US, it)}" }
+                                    )
+                                    if (financialMetrics.isNotEmpty()) {
+                                        content.append("\n\nاطلاعات استخراج‌شده از اکسل کدال:\n")
+                                        content.append(financialMetrics.joinToString("\n"))
+                                        content.append("\nواحد ارقام در فایل به‌طور مطمئن تشخیص داده نشده است؛ ارقام را با واحد ریال یا میلیون ریال فرض نکنید.")
+                                        if (filing.roePercent != null) content.append("\nROE با سود دوره تقسیم بر حقوق مالکانه پایان دوره محاسبه شده و تقریبی است.")
+                                    } else {
+                                        content.append("\n\nدر این دریافت، شاخص مالی قابل اتکا استخراج نشد؛ مقدار ناموجود به‌جای صفر یا عدد حدسی نمایش داده می‌شود.")
+                                    }
+                                    resultText.text = content
+                                    resultText.movementMethod = android.text.method.LinkMovementMethod.getInstance()
+                                } else {
+                                    resultText.text = "جستجوی کدال ناموفق بود: ${result.exceptionOrNull()?.message ?: "خطای نامشخص"}"
+                                }
+                            }
+                        }.start()
+                    }
+                })
+                card("محدودیت داده و تفسیر", "تاریخچه OHLCV از endpoint عمومی و غیررسمی TSETMC دریافت می‌شود و ممکن است محدود یا قطع شود. داده نمودار تعدیل‌شده است؛ برای مقایسه قیمت با تابلو باید این تفاوت لحاظ شود. امتیاز الگوریتمی تضمین بازده نیست.")
             }
             "اسکنر" -> {
                 card("اسکنر تاریخی OHLCV", "CSV را با ستون‌های symbol,date,open,high,low,close,volume وارد کنید. تاریخ yyyy-MM-dd و حداقل ۵۰ کندل روزانه برای هر نماد لازم است. ردیف‌ها بر اساس تاریخ مرتب می‌شوند.")
@@ -363,6 +598,8 @@ class MainActivity : Activity() {
                                             .put("stop", c.stopLoss)
                                             .put("target1", c.target1)
                                             .put("target2", c.target2)
+                                            .put("eps", c.fundamental?.eps ?: org.json.JSONObject.NULL)
+                                            .put("pe", c.fundamental?.pe ?: org.json.JSONObject.NULL)
                                             .put("recommendation", c.recommendation)
                                             .put("excludedReason", c.excludedReason ?: org.json.JSONObject.NULL))
                                     }
@@ -373,14 +610,20 @@ class MainActivity : Activity() {
                                         candidates.joinToString("\n\n") { c ->
                                             "${c.symbol} | امتیاز کل ${c.compositeScore}/100 | تکنیکال ${c.technicalScore}/100 | ${c.recommendation}\n" +
                                             "قیمت: ${"%.0f".format(java.util.Locale.US, c.lastPrice)} | جریان پول: ${c.flowScore ?: "ناموجود"} | حجم نسبی: ${c.relativeVolume?.let { "%.2fx".format(java.util.Locale.US, it) } ?: "ناموجود"}\n" +
+                                             "بنیادی: EPS ${c.fundamental?.eps?.let { "%.2f".format(java.util.Locale.US, it) } ?: "ناموجود"} | P/E ${c.fundamental?.pe?.let { "%.2f".format(java.util.Locale.US, it) } ?: "ناموجود"}\n" +
                                             "حدضرر: ${"%.0f".format(java.util.Locale.US, c.stopLoss)} | هدف ۱: ${"%.0f".format(java.util.Locale.US, c.target1)} | هدف ۲: ${"%.0f".format(java.util.Locale.US, c.target2)}\n" +
                                             (c.excludedReason?.let { "⛔ حذف از خرید: $it\n" } ?: "✅ از فیلتر اجرایی عبور کرده\n") +
                                             c.dataWarnings.joinToString("؛ ")
                                         }.ifBlank { "هیچ نمادی تحلیل معتبر دریافت نکرد." })
+                                    val diagnostics = ComprehensiveMarketScanner.lastDiagnostics
+                                    val diagnosticText = "نمادهای درخواستی: ${diagnostics.requestedSymbols} | تحلیل موفق: ${diagnostics.analyzedSymbols} | فاقد تاریخچه کافی: ${diagnostics.rejectedForInsufficientHistory} | خطای دریافت/پردازش: ${diagnostics.failedCount}" +
+                                        if (diagnostics.failedSymbols.isEmpty()) "\nهمه نمادهای انتخاب‌شده با خطای ثبت‌شده‌ای مواجه نشدند."
+                                        else "\nنمونه خطاها:\n" + diagnostics.failedSymbols.take(6).joinToString("\n")
+                                    card("گزارش عیب‌یابی اسکن", diagnosticText)
                                     card("بهترین گزینه فعلی",
                                         eligible.firstOrNull()?.let { "${it.symbol} | امتیاز ${it.compositeScore}/100 | ${it.recommendation}\nاین پیشنهاد در بخش سبد نیز قابل مشاهده خواهد بود." }
                                             ?: "هیچ سهمی شرایط ورود قابل اجرا را ندارد؛ از خرید اجباری خودداری کنید.")
-                                    status.text = "اسکن جامع انجام شد | پیشنهادها در سبد ذخیره شدند"
+                                    status.text = "اسکن جامع انجام شد | ${diagnostics.analyzedSymbols} نماد تحلیل شد؛ ${diagnostics.failedCount} خطا/کمبود داده"
                                 }
                             }
                         }.start()
@@ -440,8 +683,7 @@ class MainActivity : Activity() {
                                     }
                                     val ranked = histories.mapNotNull { data ->
                                         val candidate = AnalysisEngine.scanCandles(data.symbol, data.candles, minAvgVol) ?: return@mapNotNull null
-                                        val avgVol = data.candles.dropLast(1).takeLast(20).map { it.volume }.average()
-                                        val relativeVolume = if (avgVol > 0.0) data.candles.last().volume / avgVol else null
+                                        val relativeVolume = VolumeAnalysis.analyze(data.candles)?.relativeVolume
                                         val stop = candidate.report.last * (1.0 - candidate.riskPercent / 100.0)
                                         val risk = candidate.report.last - stop
                                         val rr = if (risk > 0.0) (candidate.target1 - candidate.report.last) / risk else null
@@ -517,9 +759,7 @@ class MainActivity : Activity() {
                                     }.toMap()
                                     val results = series.mapNotNull { data ->
                                         val candidate = AnalysisEngine.scanCandles(data.symbol, data.candles, minAvgVol) ?: return@mapNotNull null
-                                        val previousVolumes = data.candles.dropLast(1).takeLast(20).map { it.volume }
-                                        val averageVolume = previousVolumes.average()
-                                        val relativeVolume = if (averageVolume > 0.0) data.candles.last().volume / averageVolume else null
+                                        val relativeVolume = VolumeAnalysis.analyze(data.candles)?.relativeVolume
                                         val flowScore = flowScores[data.symbol]
                                         val stopPrice = candidate.report.last * (1.0 - candidate.riskPercent / 100.0)
                                         val riskAmount = candidate.report.last - stopPrice
@@ -631,6 +871,7 @@ class MainActivity : Activity() {
                 card("محدودیت", "این بیلد نسخه کامل نهایی نیست. اتصال تاریخچه TSETMC از API عمومی و غیررسمی استفاده می‌کند و هنوز تست میدانی/پایداری آن تأیید نشده است. هیچ داده بنیادی یا سیگنال زنده‌ای جعل نمی‌شود.")
             }
         }
+        styleTree(body)
     }
 
     private fun firstNumber(row: JSONObject, vararg keys: String): Double? {
@@ -778,7 +1019,7 @@ class MainActivity : Activity() {
                     val instrumentType = firstNumber(row, "yVal", "yval")?.toInt()
                     if (instrumentType != 300) return@mapNotNull null
                     commonStockRows++
-                    if (commonStockRows <= 5) diagnostic += "نمونه سهام عادی $commonStockRows: " + row.toString().take(1800) + "\\n"
+                    if (commonStockRows <= 5) diagnostic += "نمونه سهام عادی $commonStockRows: " + row.toString().take(1800) + "\n"
                     // TSETMC market-watch has both descriptive and compact field names.
                     // Zero in a descriptive field must not mask a populated compact alias.
                     // Full descriptive fields may be zero in this compact MarketWatch response.
@@ -819,13 +1060,15 @@ class MainActivity : Activity() {
                     val instrumentId = item.getOrNull(7) as? String
                     val lowTradeWarning = trades != null && trades < 20.0
                     val changeText = change?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "درصد ناموجود"
-                    (index + 1).toString() + ". " + symbol + " | آخرین: " +
-                        "%.0f".format(java.util.Locale.US, last) +
+                    // Keep quote data and activity metrics on separate lines. Long mixed
+                    // Persian/Latin strings wrap in Android TextView with confusing bidi order.
+                    (index + 1).toString() + ". " + symbol +
+                        " | آخرین: " + "%.0f".format(java.util.Locale.US, last) +
                         " | پایانی: " + (close?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                        " | تغییر: " + changeText +
-                        " | حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                         " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                        " | تعداد معامله: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
+                        " | تغییر: " + changeText + "\n" +
+                        "حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
+                        " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
+                        " | تعداد معاملات: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
                         (if (lowTradeWarning) " | هشدار: معاملات بسیار کم" else "")
                 }
                 rendered = "تعداد ردیف معتبر: " + parsed.size + " | نمایش: " + shown.size + "\n\n" + lines.joinToString("\n")

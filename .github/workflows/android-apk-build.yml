@@ -2,6 +2,8 @@ name: Android APK build
 on:
   push:
     branches: [main, master]
+  pull_request:
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -30,10 +32,46 @@ jobs:
         run: gradle --no-daemon testDebugUnitTest --stacktrace
       - name: ساخت نسخه آزمایشی APK
         run: gradle --no-daemon assembleDebug --stacktrace
-      - name: بارگذاری فایل نصب
+      - name: بارگذاری فایل نصب آزمایشی
         uses: actions/upload-artifact@v4
         with:
           name: BourseYar-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+      - name: بررسی وجود تنظیمات امضای انتشار
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.BOURSEYAR_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BOURSEYAR_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BOURSEYAR_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.BOURSEYAR_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: آماده‌سازی کلید امضای انتشار
+        if: ${{ steps.signing.outputs.ready == 'true' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.BOURSEYAR_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/bourseyar-release.jks"
+          test -s "$RUNNER_TEMP/bourseyar-release.jks"
+      - name: ساخت APK انتشار امضاشده
+        if: ${{ steps.signing.outputs.ready == 'true' }}
+        env:
+          BOURSEYAR_STORE_FILE: ${{ runner.temp }}/bourseyar-release.jks
+          BOURSEYAR_STORE_PASSWORD: ${{ secrets.BOURSEYAR_STORE_PASSWORD }}
+          BOURSEYAR_KEY_ALIAS: ${{ secrets.BOURSEYAR_KEY_ALIAS }}
+          BOURSEYAR_KEY_PASSWORD: ${{ secrets.BOURSEYAR_KEY_PASSWORD }}
+        run: gradle --no-daemon assembleRelease --stacktrace
+      - name: بارگذاری APK انتشار امضاشده
+        if: ${{ steps.signing.outputs.ready == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: BourseYar-release-signed-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
