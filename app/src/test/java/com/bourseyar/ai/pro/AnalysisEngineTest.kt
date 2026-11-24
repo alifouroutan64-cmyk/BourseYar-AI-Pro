@@ -80,6 +80,29 @@ class AnalysisEngineTest {
     }
 
     @Test
+    fun volumeAnalysisRequiresTenValidPriorSessions() {
+        val candles = flatCandles(21).mapIndexed { index, candle -> if (index < 12) candle.copy(volume = 0.0) else candle }
+        assertEquals(null, VolumeAnalysis.analyze(candles))
+    }
+
+    @Test
+    fun volumeAnalysisIgnoresZeroVolumePriorSessions() {
+        val candles = flatCandles(21).mapIndexed { index, candle ->
+            when (index) { 0, 2, 4, 6, 8 -> candle.copy(volume = 0.0); 20 -> candle.copy(volume = 2000.0); else -> candle.copy(volume = 1000.0) }
+        }
+        val metrics = requireNotNull(VolumeAnalysis.analyze(candles))
+        assertEquals(15, metrics.validPriorSessions)
+        assertEquals(1000.0, metrics.averagePriorVolume, 0.001)
+        assertEquals(2.0, metrics.relativeVolume, 0.001)
+    }
+
+    @Test
+    fun missingCurrentVolumeDoesNotProduceRelativeVolume() {
+        val candles = flatCandles(20) + flatCandles(1).single().copy(volume = 0.0)
+        assertEquals(null, VolumeAnalysis.analyze(candles))
+    }
+
+    @Test
     fun missingVolumeIsNotTreatedAsConfirmedVolume() {
         val missing = OpportunityScoring.score(80, 80, null, 2.0)
         val average = OpportunityScoring.score(80, 80, 1.0, 2.0)
