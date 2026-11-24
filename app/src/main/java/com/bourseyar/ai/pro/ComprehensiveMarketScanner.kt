@@ -110,7 +110,7 @@ data class MarketScanDiagnostics(
 
 /** Whole-market liquidity shortlist, then conservative multi-factor ranking. */
 object ComprehensiveMarketScanner {
-    @Volatile var lastDiagnostics: MarketScanDiagnostics = MarketScanDiagnostics(0, 0, 0, emptyList())
+    @Volatile var lastDiagnostics: MarketScanDiagnostics = MarketScanDiagnostics(0, 0, 0, 0, emptyList())
         private set
     fun scan(limit: Int = 20, historyCount: Int = 10): List<ComprehensiveCandidate> {
         val leaders = TsetmcHistoryProvider.fetchMarketLeaders(limit.coerceIn(5, 100))
