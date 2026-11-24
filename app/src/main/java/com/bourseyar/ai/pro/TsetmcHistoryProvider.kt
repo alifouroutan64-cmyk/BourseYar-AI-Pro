@@ -126,29 +126,8 @@ object TsetmcHistoryProvider {
         require(limit in 1..100) { "تعداد نماد باید بین ۱ تا ۱۰۰ باشد" }
         val params = (0..8).joinToString("&") { "paperTypes%5B$it%5D=${it + 1}" }
         val url = "$BASE/ClosingPrice/GetMarketWatch?market=0&industrialGroup=&$params&showTraded=false&withBestLimits=false&hEven=0&RefID=0"
-        val root = JSONObject(get(url))
-        val rows = root.optJSONArray("marketwatch")
-            ?: error("ساختار دیده‌بان بازار TSETMC تغییر کرده یا پاسخ مسدود شده است")
-        val leaders = (0 until rows.length()).mapNotNull { index ->
-            val row = rows.optJSONObject(index) ?: return@mapNotNull null
-            val code = row.optString("insCode")
-            val symbol = sequenceOf("lva", "lVal18AFC", "symbol").map { row.optString(it) }
-                .firstOrNull { it.isNotBlank() && it != "null" }.orEmpty()
-            // Keep the scanner universe to common shares; derivatives/options and debt instruments are excluded.
-            val instrumentType = row.numberOrNull("yVal", "yval")?.toInt()
-            if (instrumentType != 300) return@mapNotNull null
-            // Compact MarketWatch aliases may be populated while descriptive fields are zero.
-            val volume = row.positiveNumber("qTotTran5J", "tvol", "volume", "qtj")
-            val value = row.positiveNumber("qTotCap", "tval", "tradedValue", "qtc")
-            if (code.isBlank() || symbol.isBlank() || volume == null || value == null) null
-            else MarketLeader(symbol, code, volume, value)
-        }
-        require(leaders.isNotEmpty()) {
-            "دیده‌بان بازار ردیف معتبر برنگرداند؛ ممکن است سرویس محدود یا ساختار پاسخ تغییر کرده باشد"
-        }
-        return leaders.sortedByDescending { it.tradedValue }.take(limit)
+        return TsetmcMarketLeadersParser.parse(get(url), limit)
     }
-
 
     /** Fetch a conservative five-session money-flow score for a symbol; null means unavailable. */
     fun fetchFiveSessionFlowScore(symbol: String): Int? {
