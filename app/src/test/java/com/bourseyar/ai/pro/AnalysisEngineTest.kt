@@ -30,6 +30,18 @@ class AnalysisEngineTest {
         assertEquals("https://SUB.CODAL.IR/report", safeCodalUrl("https://SUB.CODAL.IR/report"))
     }
 
+    @Test
+    fun codalExcelLinksOnlyAllowOfficialExcelHostOverHttps() {
+        assertEquals("https://excel.codal.ir/service/Excel/GetAll/abc/0",
+            safeCodalExcelUrl("https://excel.codal.ir/service/Excel/GetAll/abc/0"))
+        assertEquals(null, safeCodalExcelUrl("http://excel.codal.ir/report"))
+        assertEquals(null, safeCodalExcelUrl("https://evil-excel.codal.ir/report"))
+        assertEquals(null, safeCodalExcelUrl("https://excel.codal.ir.example.com/report"))
+        assertEquals(null, safeCodalExcelUrl("https://user@excel.codal.ir/report"))
+        assertEquals(null, safeCodalExcelUrl("https://excel.codal.ir:8443/report"))
+        assertEquals(null, safeCodalExcelUrl("https://www.codal.ir/report"))
+    }
+
     private fun flatCandles(size: Int = 90) = List(size) {
         Candle(open = 100.0, high = 101.0, low = 99.0, close = 100.0, volume = 1000.0)
     }
