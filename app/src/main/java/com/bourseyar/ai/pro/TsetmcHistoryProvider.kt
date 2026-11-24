@@ -306,33 +306,8 @@ object TsetmcHistoryProvider {
                 it.optString("lVal18AFC").replace("ي", "ی").replace("ك", "ک") == normalized
             } ?: error("نماد دقیق «$symbol» در جستجوی TSETMC پیدا نشد")
         val code = match.optString("insCode")
-        require(code.isNotBlank()) { "کد معاملاتی نماد دریافت نشد" }
-
-        // a=1 requests backward-adjusted chart prices. Chart response columns:
-        // date,pmax,pmin,pf,pl,tvol,pc
+        require(code.matches(Regex("\\d{5,25}"))) { "کد معاملاتی نماد نامعتبر است" }
         val raw = get("$CHART?i=$code&t=ph&a=1")
-        val candles = raw.split(";").mapNotNull { row ->
-            val p = row.trim().split(",")
-            if (p.size < 7) return@mapNotNull null
-            val dateText = p[0].trim()
-            if (!validChartDate(dateText)) return@mapNotNull null
-            val high = p[1].toDoubleOrNull() ?: return@mapNotNull null
-            val low = p[2].toDoubleOrNull() ?: return@mapNotNull null
-            val open = p[3].toDoubleOrNull() ?: return@mapNotNull null
-            val last = p[4].toDoubleOrNull() ?: return@mapNotNull null
-            val volume = p[5].toDoubleOrNull() ?: return@mapNotNull null
-            val close = p[6].toDoubleOrNull() ?: return@mapNotNull null
-            if (listOf(high, low, open, last, volume, close).any { !it.isFinite() } ||
-                low <= 0 || open <= 0 || close <= 0 || high < maxOf(open, low, close) ||
-                low > minOf(open, close) || volume < 0) return@mapNotNull null
-            dateText to Candle(close = close, high = high, low = low, volume = volume, open = open)
-        }.sortedBy { it.first }
-        require(candles.size >= 50) {
-            "TSETMC برای $symbol فقط ${candles.size} کندل معتبر داد؛ حداقل ۵۰ لازم است"
-        }
-        require(candles.map { it.first }.distinct().size == candles.size) {
-            "تاریخ تکراری در تاریخچه $symbol"
-        }
-        return HistoricalSeries(symbol.trim().uppercase(), candles.map { it.second })
+        return TsetmcDailyHistoryParser.parse(symbol, raw)
     }
 }
