@@ -176,7 +176,7 @@ object AnalysisEngine {
     /**
      * Walk-forward simulation: signal uses candles through day t; entry is next day's open.
      * Stop/target are entry-relative using signal-day ATR; scanner score gates the simulated entry. If both touch on one candle, stop is assumed first.
-     * Positions may overlap. Fee is round-trip basis points.
+     * One position at a time per horizon; next entry occurs after the prior exit. Fee is round-trip basis points.
      */
     fun backtest(candles: List<Candle>, minScore: Int = 70, feeBpsRoundTrip: Double = 0.0): List<BacktestSummary> {
         if (candles.size < 60 || minScore !in 0..100 || !feeBpsRoundTrip.isFinite() || feeBpsRoundTrip < 0) return emptyList()
@@ -185,29 +185,34 @@ object AnalysisEngine {
                 it.low > min(it.open, it.close) || !it.volume.isFinite() || it.volume < 0 }) return emptyList()
         return (2..7).map { horizon ->
             val returns = mutableListOf<Double>()
+            var nextAllowedEntry = 50
             for (signalIndex in 49 until candles.size - horizon) {
                 val signalHistory = candles.subList(0, signalIndex + 1)
                 val candidate = scanCandles("BACKTEST", signalHistory) ?: continue
                 if (candidate.report.score < minScore) continue
-                val report = candidate.report
                 val entryIndex = signalIndex + 1
+                // Do not open a second position while a prior simulated position is active.
+                if (entryIndex < nextAllowedEntry) continue
+                val report = candidate.report
                 val entry = candles[entryIndex].open
                 val atrRisk = (report.atr ?: report.last * 0.04).coerceAtLeast(report.last * 0.01)
                 // Anchor stop and target to the actual next-session entry, not the prior close.
                 val stop = entry - atrRisk
                 val targetPrice = entry + atrRisk * 1.5
                 if (entry <= 0 || stop <= 0) continue
-                var exit = candles[minOf(entryIndex + horizon - 1, candles.lastIndex)].close
-                for (day in entryIndex..minOf(entryIndex + horizon - 1, candles.lastIndex)) {
+                var exitIndex = minOf(entryIndex + horizon - 1, candles.lastIndex)
+                var exit = candles[exitIndex].close
+                for (day in entryIndex..exitIndex) {
                     val bar = candles[day]
-                    if (bar.open <= stop) { exit = bar.open; break }
-                    if (bar.open >= targetPrice) { exit = targetPrice; break }
+                    if (bar.open <= stop) { exit = bar.open; exitIndex = day; break }
+                    if (bar.open >= targetPrice) { exit = targetPrice; exitIndex = day; break }
                     val hitStop = bar.low <= stop
                     val hitTarget = bar.high >= targetPrice
-                    if (hitStop) { exit = stop; break }
-                    if (hitTarget) { exit = targetPrice; break }
+                    if (hitStop) { exit = stop; exitIndex = day; break }
+                    if (hitTarget) { exit = targetPrice; exitIndex = day; break }
                 }
                 returns += (exit / entry - 1.0) * 100.0 - feeBpsRoundTrip / 100.0
+                nextAllowedEntry = exitIndex + 1
             }
             if (returns.isEmpty()) BacktestSummary(horizon, 0, 0.0, 0.0, 0.0, 0.0)
             else {
