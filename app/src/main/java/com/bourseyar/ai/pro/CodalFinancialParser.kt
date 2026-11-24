@@ -130,8 +130,7 @@ object CodalFinancialParser {
         val current = values[0]
         val previous = values[1]
         if (!current.isFinite() || !previous.isFinite() || previous == 0.0) return null
-        return (current - previous) / kotlin.math.abs(previous) * 100.0
-            .takeIf { it.isFinite() }
+        return (((current - previous) / kotlin.math.abs(previous)) * 100.0).takeIf { it.isFinite() }
     }
 
     private fun ratioPercent(numerator: Double?, denominator: Double?): Double? {
