@@ -80,10 +80,7 @@ class PortfolioActivity:Activity() {
                 view.background=shape(intArrayOf(0xFF0D1B2D.toInt(),0xFF0D1B2D.toInt()),13,1)
                 view.setPadding(14,12,14,12)
             }
-            is LinearLayout -> if(view.childCount>=2 && view.getChildAt(0) is TextView) {
-                view.background=shape(intArrayOf(0xFF152941.toInt(),0xFF0F1E31.toInt()),18,1)
-                view.setPadding(13,12,13,12); view.elevation=2f
-            }
+            is LinearLayout -> Unit
         }
         if(view is android.view.ViewGroup) for(i in 0 until view.childCount) polish(view.getChildAt(i))
     }
@@ -315,7 +312,7 @@ class PortfolioActivity:Activity() {
 
     private fun card(h:PortfolioHolding):LinearLayout {
         val d=decision(h)
-        val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(12,12,12,12)}
+        val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(12,12,12,12);background=shape(intArrayOf(0xFF152941.toInt(),0xFF0F1E31.toInt()),18,1);elevation=2f}
         box.addView(text(h.symbol,20f,0xFFFFFFFF.toInt(),true))
         box.addView(text("تعداد: "+fmt(h.shares)+" | خرید: "+fmt(h.buyPrice)+" | قیمت فعلی: "+fmt(h.currentPrice),13f))
         box.addView(text("ارزش: "+fmt(h.value)+" ریال",14f))
