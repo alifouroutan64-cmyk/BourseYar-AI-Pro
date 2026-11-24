@@ -381,12 +381,18 @@ class MainActivity : Activity() {
                                         filing.revenueGrowthPercent?.let { "رشد درآمد: ${"%+.2f%%".format(java.util.Locale.US, it)}" },
                                         filing.netProfitGrowthPercent?.let { "رشد سود خالص: ${"%+.2f%%".format(java.util.Locale.US, it)}" },
                                         filing.roePercent?.let { "بازده حقوق مالکانه تقریبی: ${"%.2f%%".format(java.util.Locale.US, it)}" },
-                                        filing.debtToEquity?.let { "نسبت بدهی به حقوق مالکانه: ${"%.2f".format(java.util.Locale.US, it)}" }
+                                        filing.debtToEquity?.let { "نسبت بدهی به حقوق مالکانه: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.revenue?.let { "درآمد عملیاتی: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.netProfit?.let { "سود خالص: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.totalAssets?.let { "جمع دارایی‌ها: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.totalEquity?.let { "جمع حقوق مالکانه: ${"%.2f".format(java.util.Locale.US, it)}" },
+                                        filing.totalLiabilities?.let { "جمع بدهی‌ها: ${"%.2f".format(java.util.Locale.US, it)}" }
                                     )
                                     if (financialMetrics.isNotEmpty()) {
-                                        content.append("\n\nشاخص‌های استخراج‌شده از اکسل کدال:\n")
+                                        content.append("\n\nاطلاعات استخراج‌شده از اکسل کدال:\n")
                                         content.append(financialMetrics.joinToString("\n"))
-                                        content.append("\nROE با سود دوره تقسیم بر حقوق مالکانه پایان دوره محاسبه شده و تقریبی است.")
+                                        content.append("\nواحد ارقام در فایل به‌طور مطمئن تشخیص داده نشده است؛ ارقام را با واحد ریال یا میلیون ریال فرض نکنید.")
+                                        if (filing.roePercent != null) content.append("\nROE با سود دوره تقسیم بر حقوق مالکانه پایان دوره محاسبه شده و تقریبی است.")
                                     } else {
                                         content.append("\n\nدر این دریافت، شاخص مالی قابل اتکا استخراج نشد؛ مقدار ناموجود به‌جای صفر یا عدد حدسی نمایش داده می‌شود.")
                                     }
