@@ -10,6 +10,24 @@ data class RenkoBrick(val close: Double, val direction: Int)
 data class ScanCandidate(val symbol: String, val report: TechnicalReport, val riskPercent: Double, val target1: Double, val target2: Double)
 data class BacktestSummary(val holdingDays: Int, val trades: Int, val winRatePercent: Double, val averageReturnPercent: Double, val profitFactor: Double, val maxDrawdownPercent: Double)
 
+data class VolumeMetrics(val averagePriorVolume: Double, val currentVolume: Double, val relativeVolume: Double, val validPriorSessions: Int)
+
+object VolumeAnalysis {
+    /** Uses up to 20 prior sessions and requires at least 10 valid positive-volume observations. */
+    fun analyze(candles: List<Candle>, lookback: Int = 20, minimumValidSessions: Int = 10): VolumeMetrics? {
+        if (lookback < 1 || minimumValidSessions < 1 || minimumValidSessions > lookback || candles.size < 2) return null
+        val current = candles.last().volume
+        if (!current.isFinite() || current <= 0.0) return null
+        val prior = candles.dropLast(1).takeLast(lookback).map { it.volume }.filter { it.isFinite() && it > 0.0 }
+        if (prior.size < minimumValidSessions) return null
+        val average = prior.average()
+        if (!average.isFinite() || average <= 0.0) return null
+        val ratio = current / average
+        if (!ratio.isFinite() || ratio <= 0.0) return null
+        return VolumeMetrics(average, current, ratio, prior.size)
+    }
+}
+
 data class TechnicalReport(
     val last: Double, val rsi: Double?, val ema20: Double?, val ema50: Double?,
     val macd: Double?, val macdSignal: Double?, val atr: Double?,
@@ -132,18 +150,20 @@ object AnalysisEngine {
         val prior = candles.dropLast(1).takeLast(20)
         if (prior.isEmpty()) return null
         val breakout = last > prior.maxOf { it.high }
-        val avgVol20 = prior.takeLast(20).map { it.volume }.average()
-        if (minAverageVolume > 0 && avgVol20 < minAverageVolume) return null
-        val volRatio = if (avgVol20 > 0) candles.last().volume / avgVol20 else 0.0
+        val volumeMetrics = VolumeAnalysis.analyze(candles)
+        val avgVol20 = volumeMetrics?.averagePriorVolume
+        if (minAverageVolume > 0 && avgVol20 != null && avgVol20 < minAverageVolume) return null
+        val volRatio = volumeMetrics?.relativeVolume
         val momentum5 = (last / candles[candles.size - 6].close - 1.0) * 100.0
         val risk = (report.atr ?: last * 0.04).coerceAtLeast(last * 0.01)
-        val volumeBonus = if (volRatio >= 1.5) 8 else if (volRatio >= 1.0) 3 else -4
+        // Missing or insufficient volume data is neutral, never an artificial penalty or boost.
+        val volumeBonus = when { volRatio == null -> 0; volRatio >= 1.5 -> 8; volRatio >= 1.0 -> 3; else -> -4 }
         val score = (report.score + (if (breakout) 10 else 0) + volumeBonus +
             (if (momentum5 in 0.5..8.0) 8 else if (momentum5 < -3.0) -8 else 0)).coerceIn(0, 100)
         val notes = report.notes + listOf(
             if (breakout) "شکست سقف ۲۰ کندل قبلی تأیید شد" else "شکست سقف ۲۰ کندل قبلی تأیید نشد",
-            "میانگین حجم ۲۰ روز قبل: %.0f سهم".format(java.util.Locale.US, avgVol20),
-            "حجم امروز نسبت به میانگین ۲۰ کندل: %.2fx".format(java.util.Locale.US, volRatio),
+            avgVol20?.let { "میانگین حجم جلسات معتبر از ۲۰ جلسه قبل: %.0f سهم".format(java.util.Locale.US, it) } ?: "حجم نسبی ناموجود؛ حداقل ۱۰ جلسه معتبر لازم است",
+            volRatio?.let { "حجم آخرین جلسه نسبت به میانگین: %.2fx".format(java.util.Locale.US, it) } ?: "تأیید حجمی انجام نشد؛ داده کافی نیست",
             if (minAverageVolume > 0) "فیلتر حداقل میانگین حجم %.0f سهم اعمال شد".format(java.util.Locale.US, minAverageVolume) else "فیلتر حداقل حجم غیرفعال است",
             "بازده ۵ کندل اخیر: %.2f%%".format(java.util.Locale.US, momentum5),
             "فیلتر حجم، ارزش معاملات و وضعیت نماد را جایگزین بررسی نقدشوندگی نمی‌کند"
