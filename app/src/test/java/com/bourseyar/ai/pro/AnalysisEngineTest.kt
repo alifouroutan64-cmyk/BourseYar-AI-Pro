@@ -31,6 +31,18 @@ class AnalysisEngineTest {
     }
 
     @Test
+    fun codalFilingReferenceKeepsOfficialExcelLinkSeparateFromReportPage() {
+        val filing = CodalFilingReference(
+            title = "صورت‌های مالی",
+            publishDate = "۱۴۰۵/۰۷/۳۰",
+            url = "https://www.codal.ir/Reports/Decision.aspx?LetterSerial=abc",
+            excelUrl = "https://excel.codal.ir/service/Excel/GetAll/abc/0"
+        )
+        assertTrue(filing.hasExcel)
+        assertEquals("https://excel.codal.ir/service/Excel/GetAll/abc/0", filing.excelUrl)
+    }
+
+    @Test
     fun codalExcelLinksOnlyAllowOfficialExcelHostOverHttps() {
         assertEquals("https://excel.codal.ir/service/Excel/GetAll/abc/0",
             safeCodalExcelUrl("https://excel.codal.ir/service/Excel/GetAll/abc/0"))
