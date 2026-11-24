@@ -466,10 +466,15 @@ class MainActivity : Activity() {
                                             (c.excludedReason?.let { "⛔ حذف از خرید: $it\n" } ?: "✅ از فیلتر اجرایی عبور کرده\n") +
                                             c.dataWarnings.joinToString("؛ ")
                                         }.ifBlank { "هیچ نمادی تحلیل معتبر دریافت نکرد." })
+                                    val diagnostics = ComprehensiveMarketScanner.lastDiagnostics
+                                    val diagnosticText = "نمادهای درخواستی: ${diagnostics.requestedSymbols} | تحلیل موفق: ${diagnostics.analyzedSymbols} | فاقد تاریخچه کافی: ${diagnostics.rejectedForInsufficientHistory} | خطای دریافت/پردازش: ${diagnostics.failedCount}" +
+                                        if (diagnostics.failedSymbols.isEmpty()) "\\nهمه نمادهای انتخاب‌شده با خطای ثبت‌شده‌ای مواجه نشدند."
+                                        else "\\nنمونه خطاها:\\n" + diagnostics.failedSymbols.take(6).joinToString("\\n")
+                                    card("گزارش عیب‌یابی اسکن", diagnosticText)
                                     card("بهترین گزینه فعلی",
                                         eligible.firstOrNull()?.let { "${it.symbol} | امتیاز ${it.compositeScore}/100 | ${it.recommendation}\nاین پیشنهاد در بخش سبد نیز قابل مشاهده خواهد بود." }
                                             ?: "هیچ سهمی شرایط ورود قابل اجرا را ندارد؛ از خرید اجباری خودداری کنید.")
-                                    status.text = "اسکن جامع انجام شد | پیشنهادها در سبد ذخیره شدند"
+                                    status.text = "اسکن جامع انجام شد | ${diagnostics.analyzedSymbols} نماد تحلیل شد؛ ${diagnostics.failedCount} خطا/کمبود داده"
                                 }
                             }
                         }.start()
