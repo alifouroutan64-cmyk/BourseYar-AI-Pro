@@ -468,8 +468,8 @@ class MainActivity : Activity() {
                                         }.ifBlank { "هیچ نمادی تحلیل معتبر دریافت نکرد." })
                                     val diagnostics = ComprehensiveMarketScanner.lastDiagnostics
                                     val diagnosticText = "نمادهای درخواستی: ${diagnostics.requestedSymbols} | تحلیل موفق: ${diagnostics.analyzedSymbols} | فاقد تاریخچه کافی: ${diagnostics.rejectedForInsufficientHistory} | خطای دریافت/پردازش: ${diagnostics.failedCount}" +
-                                        if (diagnostics.failedSymbols.isEmpty()) "\\nهمه نمادهای انتخاب‌شده با خطای ثبت‌شده‌ای مواجه نشدند."
-                                        else "\\nنمونه خطاها:\\n" + diagnostics.failedSymbols.take(6).joinToString("\\n")
+                                        if (diagnostics.failedSymbols.isEmpty()) "\nهمه نمادهای انتخاب‌شده با خطای ثبت‌شده‌ای مواجه نشدند."
+                                        else "\nنمونه خطاها:\n" + diagnostics.failedSymbols.take(6).joinToString("\n")
                                     card("گزارش عیب‌یابی اسکن", diagnosticText)
                                     card("بهترین گزینه فعلی",
                                         eligible.firstOrNull()?.let { "${it.symbol} | امتیاز ${it.compositeScore}/100 | ${it.recommendation}\nاین پیشنهاد در بخش سبد نیز قابل مشاهده خواهد بود." }
@@ -869,7 +869,7 @@ class MainActivity : Activity() {
                     val instrumentType = firstNumber(row, "yVal", "yval")?.toInt()
                     if (instrumentType != 300) return@mapNotNull null
                     commonStockRows++
-                    if (commonStockRows <= 5) diagnostic += "نمونه سهام عادی $commonStockRows: " + row.toString().take(1800) + "\\n"
+                    if (commonStockRows <= 5) diagnostic += "نمونه سهام عادی $commonStockRows: " + row.toString().take(1800) + "\n"
                     // TSETMC market-watch has both descriptive and compact field names.
                     // Zero in a descriptive field must not mask a populated compact alias.
                     // Full descriptive fields may be zero in this compact MarketWatch response.
