@@ -74,7 +74,9 @@ object AnalysisEngine {
             avgGain = (avgGain * (period - 1) + max(d, 0.0)) / period
             avgLoss = (avgLoss * (period - 1) + max(-d, 0.0)) / period
         }
+        if (avgGain == 0.0 && avgLoss == 0.0) return 50.0
         if (avgLoss == 0.0) return 100.0
+        if (avgGain == 0.0) return 0.0
         val rs = avgGain / avgLoss
         return 100.0 - 100.0 / (1.0 + rs)
     }
