@@ -338,7 +338,7 @@ class MainActivity : Activity() {
                         text = "در حال جستجو در کدال…"
                         resultText.text = "در حال دریافت اطلاعیه‌های منتشرشده برای $symbol…"
                         Thread {
-                            val result = runCatching { CodalPublicApi.searchFilings(symbol, 30) }
+                            val result = runCatching { CodalPublicApi.searchFilingsWithMetrics(symbol, 30) }
                             runOnUiThread {
                                 isEnabled = true
                                 text = "جستجوی اطلاعیه‌های کدال برای نماد"
@@ -376,7 +376,20 @@ class MainActivity : Activity() {
                                             .joinToString("\n").ifBlank { "عنوان اطلاعیه‌ای از پاسخ کدال استخراج نشد." })
                                     }
                                     content.append("\nپیوند صفحه گزارش فقط به دامنه امن codal.ir و پیوند اکسل فقط به میزبان رسمی excel.codal.ir محدود شده‌اند.")
-                                    content.append("\n\nاین بخش فهرست اطلاعیه‌ها را نمایش می‌دهد؛ هنوز ارقام صورت‌های مالی از متن گزارش‌ها استخراج نشده‌اند.")
+                                    content.append("\n\nوضعیت داده بنیادی: ${filing.sourceNote}")
+                                    val financialMetrics = listOfNotNull(
+                                        filing.revenueGrowthPercent?.let { "رشد درآمد: ${"%+.2f%%".format(java.util.Locale.US, it)}" },
+                                        filing.netProfitGrowthPercent?.let { "رشد سود خالص: ${"%+.2f%%".format(java.util.Locale.US, it)}" },
+                                        filing.roePercent?.let { "بازده حقوق مالکانه تقریبی: ${"%.2f%%".format(java.util.Locale.US, it)}" },
+                                        filing.debtToEquity?.let { "نسبت بدهی به حقوق مالکانه: ${"%.2f".format(java.util.Locale.US, it)}" }
+                                    )
+                                    if (financialMetrics.isNotEmpty()) {
+                                        content.append("\n\nشاخص‌های استخراج‌شده از اکسل کدال:\n")
+                                        content.append(financialMetrics.joinToString("\n"))
+                                        content.append("\nROE با سود دوره تقسیم بر حقوق مالکانه پایان دوره محاسبه شده و تقریبی است.")
+                                    } else {
+                                        content.append("\n\nدر این دریافت، شاخص مالی قابل اتکا استخراج نشد؛ مقدار ناموجود به‌جای صفر یا عدد حدسی نمایش داده می‌شود.")
+                                    }
                                     resultText.text = content
                                     resultText.movementMethod = android.text.method.LinkMovementMethod.getInstance()
                                 } else {
