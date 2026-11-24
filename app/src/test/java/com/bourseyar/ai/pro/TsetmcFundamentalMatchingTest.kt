@@ -3,6 +3,7 @@ package com.bourseyar.ai.pro
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.json.JSONObject
 
 class TsetmcFundamentalMatchingTest {
     @Test
@@ -28,4 +29,20 @@ class TsetmcFundamentalMatchingTest {
         val instruments = listOf("فولاد" to "", "فولاد" to "null")
         assertNull(selectExactTsetmcInstrumentCode(instruments, "فولاد"))
     }
+
+    @Test
+    fun parsesFundamentalAliasesAndKeepsMissingValuesNull() {
+        val parsed = TsetmcFundamentalApi.parseInstrumentInfo(
+            JSONObject("""{"instrumentInfo":{"EPS":"1,250","peRatio":6.5,"sectorName":"فلزات"}}""")
+        )
+        assertEquals(1250.0, parsed.eps!!, 0.001)
+        assertEquals(6.5, parsed.pe!!, 0.001)
+        assertEquals("فلزات", parsed.sector)
+        val missing = TsetmcFundamentalApi.parseInstrumentInfo(JSONObject("""{}"""))
+        assertNull(missing.eps)
+        assertNull(missing.pe)
+        assertNull(missing.sector)
+    }
+
+
 }
