@@ -173,7 +173,7 @@ object CodalPublicApi {
             totalAssets = extracted.totalAssets,
             totalEquity = extracted.totalEquity,
             totalLiabilities = extracted.totalLiabilities,
-            sourceNote = "استخراج آزمایشی از اکسل رسمی کدال؛ فقط ردیف‌های شناسایی‌شده نمایش داده می‌شوند"
+            sourceNote = "استخراج آزمایشی از برگه ۰ اکسل رسمی کدال؛ فقط ردیف‌های دقیقاً شناسایی‌شده نمایش داده می‌شوند؛ وضعیت تلفیقی/جداگانه و واحد ارقام نیازمند بررسی گزارش است"
         )
     }
 
