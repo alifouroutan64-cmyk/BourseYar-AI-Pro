@@ -19,7 +19,7 @@ class AnalysisEngineTest {
     @Test
     fun backtestDoesNotOverlapPositionsWithinEachHorizon() {
         val results = AnalysisEngine.backtest(flatCandles(90), minScore = 0)
-        val expectedTrades = mapOf(2 to 20, 3 to 13, 4 to 10, 5 to 8, 6 to 7, 7 to 6)
+        val expectedTrades = mapOf(2 to 20, 3 to 13, 4 to 10, 5 to 8, 6 to 6, 7 to 5)
         results.forEach { result ->
             assertEquals(expectedTrades[result.holdingDays], result.trades)
         }
