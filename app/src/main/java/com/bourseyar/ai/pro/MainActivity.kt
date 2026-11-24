@@ -970,29 +970,7 @@ class MainActivity : Activity() {
                 diagnostic += parsedResult.diagnostics
                 lastMarketErrorReport = diagnostic
                 require(parsed.isNotEmpty()) { "پاسخ دریافت شد اما ردیف قیمت معتبر در آن نبود. ${parsedResult.diagnostics}" }
-                val shown = parsed.take(45)
-                val lines = shown.mapIndexed { index, item ->
-                    val symbol = item.symbol
-                    val last = item.last
-                    val close = item.close
-                    val change = item.changePercent
-                    val volume = item.volume
-                    val value = item.tradedValue
-                    val trades = item.tradeCount
-                    val lowTradeWarning = trades != null && trades < 20.0
-                    val changeText = change?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "درصد ناموجود"
-                    // Keep quote data and activity metrics on separate lines. Long mixed
-                    // Persian/Latin strings wrap in Android TextView with confusing bidi order.
-                    (index + 1).toString() + ". " + symbol +
-                        " | آخرین: " + "%.0f".format(java.util.Locale.US, last) +
-                        " | پایانی: " + (close?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                        " | تغییر: " + changeText + "\n" +
-                        "حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
-                        " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
-                        " | تعداد معاملات: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
-                        (if (lowTradeWarning) " | هشدار: معاملات بسیار کم" else "")
-                }
-                rendered = "تعداد ردیف معتبر: " + parsed.size + " | نمایش: " + shown.size + "\n\n" + lines.joinToString("\n")
+                rendered = MarketWatchFormatter.format(parsed, 45)
             } catch (e: Exception) {
                 failure = e.localizedMessage ?: "خطای شبکه یا پاسخ نامعتبر"
                 diagnostic += "\nنوع استثنا: ${e.javaClass.name}\nشرح خطا: ${e.localizedMessage ?: "بدون توضیح"}\n"
