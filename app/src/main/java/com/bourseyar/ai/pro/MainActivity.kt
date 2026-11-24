@@ -440,8 +440,7 @@ class MainActivity : Activity() {
                                     }
                                     val ranked = histories.mapNotNull { data ->
                                         val candidate = AnalysisEngine.scanCandles(data.symbol, data.candles, minAvgVol) ?: return@mapNotNull null
-                                        val avgVol = data.candles.dropLast(1).takeLast(20).map { it.volume }.average()
-                                        val relativeVolume = if (avgVol > 0.0) data.candles.last().volume / avgVol else null
+                                        val relativeVolume = VolumeAnalysis.analyze(data.candles)?.relativeVolume
                                         val stop = candidate.report.last * (1.0 - candidate.riskPercent / 100.0)
                                         val risk = candidate.report.last - stop
                                         val rr = if (risk > 0.0) (candidate.target1 - candidate.report.last) / risk else null
@@ -517,9 +516,7 @@ class MainActivity : Activity() {
                                     }.toMap()
                                     val results = series.mapNotNull { data ->
                                         val candidate = AnalysisEngine.scanCandles(data.symbol, data.candles, minAvgVol) ?: return@mapNotNull null
-                                        val previousVolumes = data.candles.dropLast(1).takeLast(20).map { it.volume }
-                                        val averageVolume = previousVolumes.average()
-                                        val relativeVolume = if (averageVolume > 0.0) data.candles.last().volume / averageVolume else null
+                                        val relativeVolume = VolumeAnalysis.analyze(data.candles)?.relativeVolume
                                         val flowScore = flowScores[data.symbol]
                                         val stopPrice = candidate.report.last * (1.0 - candidate.riskPercent / 100.0)
                                         val riskAmount = candidate.report.last - stopPrice
@@ -819,13 +816,15 @@ class MainActivity : Activity() {
                     val instrumentId = item.getOrNull(7) as? String
                     val lowTradeWarning = trades != null && trades < 20.0
                     val changeText = change?.let { "%+.2f%%".format(java.util.Locale.US, it) } ?: "درصد ناموجود"
-                    (index + 1).toString() + ". " + symbol + " | آخرین: " +
-                        "%.0f".format(java.util.Locale.US, last) +
+                    // Keep quote data and activity metrics on separate lines. Long mixed
+                    // Persian/Latin strings wrap in Android TextView with confusing bidi order.
+                    (index + 1).toString() + ". " + symbol +
+                        " | آخرین: " + "%.0f".format(java.util.Locale.US, last) +
                         " | پایانی: " + (close?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                        " | تغییر: " + changeText +
-                        " | حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                         " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
-                        " | تعداد معامله: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "—") +
+                        " | تغییر: " + changeText + "\n" +
+                        "حجم: " + (volume?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
+                        " | ارزش: " + (value?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
+                        " | تعداد معاملات: " + (trades?.let { "%.0f".format(java.util.Locale.US, it) } ?: "ناموجود") +
                         (if (lowTradeWarning) " | هشدار: معاملات بسیار کم" else "")
                 }
                 rendered = "تعداد ردیف معتبر: " + parsed.size + " | نمایش: " + shown.size + "\n\n" + lines.joinToString("\n")
