@@ -1,7 +1,6 @@
 package com.bourseyar.ai.pro
 
 import java.net.HttpURLConnection
-import java.net.URL
 
 /** Raw HTTP snapshot from TSETMC, kept separate from Android UI and JSON parsing. */
 data class MarketWatchHttpSnapshot(
@@ -12,10 +11,12 @@ data class MarketWatchHttpSnapshot(
 
 object MarketWatchDataSource {
     fun fetch(endpoint: String): MarketWatchHttpSnapshot {
-        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+        val trustedUrl = TsetmcHttpClient.validateUrl(endpoint).toURL()
+        val connection = (trustedUrl.openConnection() as HttpURLConnection).apply {
             connectTimeout = 10000
             readTimeout = 15000
             requestMethod = "GET"
+            instanceFollowRedirects = false
             setRequestProperty("User-Agent", "Mozilla/5.0 BourseYarAIPro/0.3")
             setRequestProperty("Accept", "application/json")
         }
