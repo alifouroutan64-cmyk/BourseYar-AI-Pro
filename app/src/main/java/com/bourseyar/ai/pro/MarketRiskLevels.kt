@@ -11,8 +11,11 @@ data class MarketRiskLevels(
          * technical support and the percentage-based stop when support exists.
          */
         fun calculate(lastPrice: Double, support: Double?, riskPercent: Double): MarketRiskLevels {
+            require(lastPrice.isFinite() && lastPrice > 0.0) { "lastPrice must be finite and positive" }
+            require(riskPercent.isFinite() && riskPercent >= 0.0) { "riskPercent must be finite and non-negative" }
             val percentageStop = lastPrice * (1.0 - riskPercent / 100.0)
-            val stop = support?.let { minOf(it, percentageStop) } ?: percentageStop
+            val validSupport = support?.takeIf { it.isFinite() && it > 0.0 && it < lastPrice }
+            val stop = validSupport?.let { minOf(it, percentageStop) } ?: percentageStop
             val risk = lastPrice - stop
             return MarketRiskLevels(
                 stopLoss = stop,
