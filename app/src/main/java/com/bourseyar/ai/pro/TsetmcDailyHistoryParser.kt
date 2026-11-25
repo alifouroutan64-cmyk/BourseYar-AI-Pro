@@ -36,6 +36,7 @@ internal object TsetmcDailyHistoryParser {
             val close = columns[6].toDoubleOrNull() ?: return@mapNotNull null
             if (listOf(high, low, open, last, volume, close).any { !it.isFinite() } ||
                 low <= 0.0 || open <= 0.0 || last <= 0.0 || close <= 0.0 ||
+                last < low || last > high ||
                 high < maxOf(open, low, close) || low > minOf(open, close) || volume < 0.0
             ) return@mapNotNull null
             date to Candle(close = close, high = high, low = low, volume = volume, open = open)
