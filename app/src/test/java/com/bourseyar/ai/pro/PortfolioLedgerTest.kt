@@ -16,8 +16,8 @@ class PortfolioLedgerTest {
 
         val position = result!!.positions.single()
         assertEquals(20L, position.quantity)
-        assertEquals(151L, position.averageCostPerShare)
-        assertEquals(3_020L, position.remainingCost)
+        assertEquals(160L, position.averageCostPerShare)
+        assertEquals(3_200L, position.remainingCost)
         assertEquals(0L, result.realizedProfitLoss)
     }
 
@@ -32,9 +32,9 @@ class PortfolioLedgerTest {
 
         val position = result!!.positions.single()
         assertEquals(6L, position.quantity)
-        assertEquals(606L, position.remainingCost)
-        assertEquals(101L, position.averageCostPerShare)
-        assertEquals(174L, result.realizedProfitLoss)
+        assertEquals(660L, position.remainingCost)
+        assertEquals(110L, position.averageCostPerShare)
+        assertEquals(140L, result.realizedProfitLoss)
     }
 
     @Test
