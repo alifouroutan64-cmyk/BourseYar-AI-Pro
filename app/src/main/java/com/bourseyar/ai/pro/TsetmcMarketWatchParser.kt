@@ -86,6 +86,7 @@ object TsetmcMarketWatchParser {
             val previousClose = firstPositiveNumber(row, "priceYesterday", "py")
             val changeBase = close ?: last
             val change = previousClose?.let { 100.0 * (changeBase - it) / it }
+                ?.takeIf { it.isFinite() }
             val volume = firstActivityNumber(row, "qTotTran5J", "tvol", "volume", "qtj")
             val value = firstActivityNumber(row, "qTotCap", "tval", "tradedValue", "qtc")
             val trades = firstActivityNumber(row, "zTotTran", "tno", "tradeCount", "ztt")
