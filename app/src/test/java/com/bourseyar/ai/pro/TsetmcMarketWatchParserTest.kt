@@ -66,6 +66,17 @@ class TsetmcMarketWatchParserTest {
     }
 
     @Test
+    fun rejectsOverflowingChangePercentage() {
+        val extreme = JSONObject()
+            .put("lVal18AFC", "نماد")
+            .put("yVal", 300)
+            .put("pDrCotVal", Double.MAX_VALUE)
+            .put("priceYesterday", Double.MIN_VALUE)
+        val result = TsetmcMarketWatchParser.parse(JSONArray().put(extreme))
+        assertNull(result.rows.single().changePercent)
+    }
+
+    @Test
     fun ignoresClosingPriceAliasThatIsFarFromLastPrice() {
         val result = TsetmcMarketWatchParser.parse(JSONArray().put(row("فولاد", "1").put("pClosing", 200)))
         assertNull(result.rows.single().close)
