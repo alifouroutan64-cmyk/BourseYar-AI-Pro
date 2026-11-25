@@ -3,7 +3,6 @@ package com.bourseyar.ai.pro
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 
 /** Free Codal search API. Its schema is not a stable contract; this parser is intentionally defensive. */
 object CodalPublicApi {
@@ -102,11 +101,7 @@ object CodalPublicApi {
     }
 
     fun searchFilings(symbol: String, limit: Int = 20): FundamentalSnapshot {
-        val encoded = URLEncoder.encode(symbol.trim(), "UTF-8")
-        val urls = listOf(
-            "${BASE}?search=${encoded}&PageNumber=1&PageSize=${limit}",
-            "${BASE}?Symbol=${encoded}&PageNumber=1&PageSize=${limit}"
-        )
+        val urls = CodalSearchRequest.urls(symbol, limit)
         var lastError: Exception? = null
         for (url in urls) {
             try {
