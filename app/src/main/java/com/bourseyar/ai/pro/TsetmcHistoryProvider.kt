@@ -132,17 +132,7 @@ object TsetmcHistoryProvider {
     /** Fetch a conservative five-session money-flow score for a symbol; null means unavailable. */
     fun fetchFiveSessionFlowScore(symbol: String): Int? {
         val code = resolveInstrumentCode(symbol) ?: return null
-        val days = fetchClientFlowHistory(code).takeLast(5)
-        val valid = days.mapNotNull { day ->
-            val net = day.netIndividualValue
-            val gross = day.grossIndividualValue
-            if (net == null || gross == null || gross <= 0.0) null else day to (net to gross)
-        }
-        if (valid.isEmpty()) return null
-        val netTotal = valid.sumOf { it.second.first }
-        val grossTotal = valid.sumOf { it.second.second }
-        val positive = valid.count { it.second.first > 0.0 }
-        return AnalysisEngine.normalizedFlowScore(netTotal, grossTotal, positive, valid.size)
+        return TsetmcFiveSessionFlowScorer.score(fetchClientFlowHistory(code))
     }
 
 
