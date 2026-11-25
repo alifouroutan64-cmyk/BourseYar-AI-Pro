@@ -9,10 +9,17 @@ import java.net.URLEncoder
 internal object CodalSearchRequest {
     private const val BASE = "https://search.codal.ir/api/search/v2/q"
     const val MAX_PAGE_SIZE = 100
+    const val MAX_SYMBOL_LENGTH = 100
 
     fun urls(symbol: String, limit: Int): List<String> {
         val normalizedSymbol = symbol.trim()
         require(normalizedSymbol.isNotEmpty()) { "symbol must not be blank" }
+        require(normalizedSymbol.length <= MAX_SYMBOL_LENGTH) {
+            "symbol must not exceed $MAX_SYMBOL_LENGTH characters"
+        }
+        require(normalizedSymbol.none { it.isISOControl() }) {
+            "symbol must not contain control characters"
+        }
         require(limit in 1..MAX_PAGE_SIZE) { "limit must be between 1 and $MAX_PAGE_SIZE" }
 
         val encoded = URLEncoder.encode(normalizedSymbol, "UTF-8")
