@@ -9,13 +9,13 @@ class TsetmcFundamentalMatchingTest {
     @Test
     fun selectsExactSymbolInsteadOfFirstSearchResult() {
         val instruments = listOf("فولادح" to "123456", "فولاد" to "987654")
-        assertEquals("right-2", selectExactTsetmcInstrumentCode(instruments, "فولاد"))
+        assertEquals("987654", selectExactTsetmcInstrumentCode(instruments, "فولاد"))
     }
 
     @Test
     fun matchesArabicAndPersianLetterVariants() {
         val instruments = listOf("\u0643\u064A\u0627\u0646" to "123456")
-        assertEquals("123", selectExactTsetmcInstrumentCode(instruments, "کیان"))
+        assertEquals("123456", selectExactTsetmcInstrumentCode(instruments, "کیان"))
     }
 
     @Test
