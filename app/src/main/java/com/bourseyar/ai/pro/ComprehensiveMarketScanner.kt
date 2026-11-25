@@ -142,7 +142,9 @@ object ComprehensiveMarketScanner {
                 val flow = runCatching { TsetmcHistoryProvider.fetchFiveSessionFlowScore(leader.symbol) }.getOrNull()
                 val snapshot = runCatching { TsetmcHistoryProvider.fetchLiveSnapshot(leader.symbol) }.getOrNull()
                 val quote = snapshot?.quote
-                val last = quote?.last ?: quote?.close ?: technical.report.last
+                // Historical candles are requested adjusted (t=ph&a=1); live quote is not.
+                // Never combine an unadjusted live quote with adjusted support/ATR levels.
+                val last = technical.report.last
                 // Keep the multi-symbol scanner away from Codal's aggressively rate-limited search API.
                 // Filing titles remain available through the explicit per-symbol Codal search action.
                 val tseFund = runCatching { TsetmcFundamentalApi.fetch(leader.symbol) }.getOrNull()
@@ -173,6 +175,7 @@ object ComprehensiveMarketScanner {
                 if (fundamental?.hasFinancialMetrics != true) warnings += "نسب بنیادی قابل استخراج نبود؛ وزن بنیادی حذف شد"
                 if (flow == null) warnings += "جریان پول حقیقی ناقص"
                 if (quote == null) warnings += "تابلوی لحظه‌ای دریافت نشد"
+                else warnings += "قیمت و سطوح ریسک بر مبنای تاریخچه تعدیل‌شده‌اند؛ قیمت تابلو فقط برای بررسی صف استفاده شده است"
                 when {
                     relativeVolume == null -> warnings += "حجم یا میانگین ۲۰ جلسه‌ای معتبر نیست؛ تأیید حجمی نداریم"
                     relativeVolume >= 2.0 -> warnings += "حجم امروز حداقل ۲ برابر میانگین جلسات قبل است؛ تأیید حجمی قوی (نیازمند تأیید قیمت و نقدشوندگی)"
