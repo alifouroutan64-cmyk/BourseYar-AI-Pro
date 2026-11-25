@@ -144,7 +144,7 @@ object CodalFinancialParser {
     }
 
     private fun ratio(numerator: Double?, denominator: Double?): Double? {
-        if (numerator == null || denominator == null || denominator == 0.0) return null
+        if (numerator == null || denominator == null || denominator <= 0.0) return null
         return (numerator / denominator).takeIf { it.isFinite() }
     }
 
