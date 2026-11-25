@@ -37,6 +37,14 @@ class TsetmcDailyHistoryParserTest {
     }
 
     @Test
+    fun rejectsNonPositiveLastTradePrice() {
+        val invalidLast = row("20260101", last = 0)
+        assertThrows(IllegalArgumentException::class.java) {
+            TsetmcDailyHistoryParser.parse("فولاد", invalidLast, minimumCandles = 1)
+        }
+    }
+
+    @Test
     fun rejectsDuplicateDates() {
         val raw = row("20260101") + ";" + row("20260101", close = 103)
         assertThrows(IllegalArgumentException::class.java) {
