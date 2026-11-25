@@ -43,12 +43,24 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg
         window.navigationBarColor = bg
+        if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
         window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
         window.statusBarColor = Color.rgb(5, 12, 24)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 14, 16, 8)
             background = rounded(intArrayOf(Color.rgb(8, 19, 36), bg), 0, 0, 0, 0)
+            // Android 15 enforces edge-to-edge for targetSdk 35. Keep app content
+            // below the status bar and above the gesture/navigation area.
+            setOnApplyWindowInsetsListener { view, insets ->
+                view.setPadding(
+                    16,
+                    maxOf(14, insets.systemWindowInsetTop + 8),
+                    16,
+                    maxOf(8, insets.systemWindowInsetBottom + 8)
+                )
+                insets
+            }
         }
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -118,6 +130,8 @@ class MainActivity : Activity() {
             setPadding(8, 8, 8, 8)
             gravity = Gravity.CENTER_VERTICAL
             setTextIsSelectable(true)
+            includeFontPadding = true
+            if (android.os.Build.VERSION.SDK_INT >= 23) breakStrategy = android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY
         }
 
     private fun styleTree(view: View) {
@@ -281,7 +295,11 @@ class MainActivity : Activity() {
                     text = "کپی گزارش خطا"
                     setOnClickListener { copyMarketErrorReport() }
                 })
-                marketResultsText = label("در انتظار دریافت اولین snapshot بازار…", 13f, Color.WHITE)
+                marketResultsText = label("در انتظار دریافت اولین snapshot بازار…", 15f, Color.WHITE).apply {
+                    setPadding(10, 14, 10, 18)
+                    setLineSpacing(5f, 1.08f)
+                    gravity = Gravity.RIGHT or Gravity.TOP
+                }
                 body.addView(marketResultsText)
                 card("محدودیت منبع", "منبع رایگان و بدون کلید API است، اما غیررسمی است؛ ممکن است از دسترس خارج شود، محدودیت نرخ داشته باشد یا داده با تأخیر برسد. در زمان خطا، داده قبلی به‌عنوان قیمت زنده نمایش داده نمی‌شود.")
                 startMarketPolling()
