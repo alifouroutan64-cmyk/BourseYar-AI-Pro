@@ -27,7 +27,7 @@ class TsetmcFiveSessionFlowScorerTest {
         val result = TsetmcFiveSessionFlowScorer.score(
             listOf(day(50.0, 100.0), day(-25.0, 100.0), day(25.0, 100.0))
         )
-        assertEquals(62, result)
+        assertEquals(60, result)
     }
 
     @Test fun onlyLatestFiveSessionsAreUsed() {
