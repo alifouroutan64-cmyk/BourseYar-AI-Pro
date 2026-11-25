@@ -91,8 +91,13 @@ object TsetmcMarketWatchParser {
             val trades = firstActivityNumber(row, "zTotTran", "tno", "tradeCount", "ztt")
             val instrumentId = firstText(row, "insCode", "inscode", "instrumentId", "instrumentID")
             MarketWatchRow(symbol, last, close, change, volume, value, trades, instrumentId)
-        }.distinctBy { item -> item.instrumentId?.let { "id:$it" } ?: "row:${item.hashCode()}" }
-            .sortedByDescending { it.tradedValue ?: 0.0 }
+        }.fold(mutableListOf<MarketWatchRow>()) { unique, item ->
+            // Only a real instrument ID can prove two rows are duplicates.
+            if (item.instrumentId == null || unique.none { it.instrumentId == item.instrumentId }) {
+                unique += item
+            }
+            unique
+        }.sortedByDescending { it.tradedValue ?: 0.0 }
         val duplicateCount = priceRows - parsed.size
         diagnostics.append("\nردیف‌های شیء JSON: $objectRows\n")
             .append("ردیف‌های دارای نماد: $symbolRows\n")
