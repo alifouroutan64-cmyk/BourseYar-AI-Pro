@@ -1,7 +1,5 @@
 package com.bourseyar.ai.pro
 
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -112,44 +110,8 @@ object CodalPublicApi {
         var lastError: Exception? = null
         for (url in urls) {
             try {
-                val root = JSONObject(request(url))
-                val rows = root.optJSONArray("Letters") ?: root.optJSONArray("letter") ?: root.optJSONArray("items")
-                    ?: root.optJSONArray("data") ?: JSONArray()
-                val references = mutableListOf<CodalFilingReference>()
-                for (i in 0 until rows.length()) {
-                    val row = rows.optJSONObject(i) ?: continue
-                    val title = sequenceOf("Title", "title", "LetterTitle", "letterTitle")
-                        .map { row.optString(it).trim() }
-                        .firstOrNull { it.isNotBlank() && it != "null" } ?: continue
-                    val rowSymbol = sequenceOf("Symbol", "symbol", "Ticker", "ticker")
-                        .map { row.optString(it).trim() }
-                        .firstOrNull { it.isNotBlank() && it != "null" }
-                    val normalizedRequested = symbol.trim().replace("ي", "ی").replace("ك", "ک")
-                    if (rowSymbol != null && rowSymbol.replace("ي", "ی").replace("ك", "ک") != normalizedRequested) continue
-                    val rawUrl = sequenceOf("HtmlUrl", "htmlUrl", "Url", "url", "Link", "link")
-                        .map { row.optString(it).trim() }
-                        .firstOrNull { it.isNotBlank() && it != "null" }
-                    val safeUrl = safeCodalUrl(rawUrl)
-                    val rawExcelUrl = sequenceOf("ExcelUrl", "excelUrl", "ExcelURL", "excelURL")
-                        .map { row.optString(it).trim() }
-                        .firstOrNull { it.isNotBlank() && it != "null" }
-                    val safeExcelUrl = safeCodalExcelUrl(rawExcelUrl)
-                    val date = sequenceOf("PublishDateTime", "publishDateTime", "SentDateTime", "sentDateTime", "PublishDate")
-                        .map { row.optString(it).trim() }
-                        .firstOrNull { it.isNotBlank() && it != "null" }
-                    references += CodalFilingReference(title, date, safeUrl, excelUrl = safeExcelUrl)
-                }
-                if (rows.length() > 0 || root.has("Letters") || root.has("items") || root.has("data")) {
-                    val total = sequenceOf("Total", "total", "TotalCount", "totalCount", "Count", "count")
-                        .mapNotNull { root.opt(it)?.toString()?.toIntOrNull() }
-                        .firstOrNull { it >= 0 } ?: rows.length()
-                    return FundamentalSnapshot(
-                        symbol = symbol,
-                        filingsFound = maxOf(total, references.size),
-                        recentFilingTitles = references.take(5).map { it.title },
-                        recentFilings = references.take(5)
-                    )
-                }
+                val parsed = CodalFilingSearchParser.parse(request(url), symbol)
+                if (parsed != null) return parsed
             } catch (e: Exception) {
                 lastError = e
                 // A 429 means Codal is throttling this client. Do not immediately hit
