@@ -22,7 +22,7 @@ internal fun selectExactTsetmcInstrumentCode(instruments: List<Pair<String, Stri
     if (requested.isBlank()) return null
     return instruments.firstOrNull { (symbol, _) ->
         normalizeTsetmcSymbol(symbol) == requested
-    }?.second?.takeIf { it.isNotBlank() && it != "null" }
+    }?.second?.takeIf { it.matches(Regex("\\d{5,25}")) }
 }
 
 /** Best-effort public instrument fundamentals (EPS/P-E) from TSETMC; never marks missing fields as zero. */
