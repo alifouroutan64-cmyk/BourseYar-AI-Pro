@@ -31,6 +31,12 @@ class TsetmcFundamentalMatchingTest {
     }
 
     @Test
+    fun skipsMalformedDuplicateBeforeValidExactMatch() {
+        val instruments = listOf("فولاد" to "12/345", "فولاد" to "123456")
+        assertEquals("123456", selectExactTsetmcInstrumentCode(instruments, "فولاد"))
+    }
+
+    @Test
     fun rejectsMalformedInstrumentCodes() {
         val instruments = listOf("فولاد" to "123/456", "فولاد" to "1234", "فولاد" to "12345678901234567890123456")
         assertNull(selectExactTsetmcInstrumentCode(instruments, "فولاد"))
