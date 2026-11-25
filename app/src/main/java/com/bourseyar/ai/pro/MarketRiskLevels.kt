@@ -12,7 +12,7 @@ data class MarketRiskLevels(
          */
         fun calculate(lastPrice: Double, support: Double?, riskPercent: Double): MarketRiskLevels {
             require(lastPrice.isFinite() && lastPrice > 0.0) { "lastPrice must be finite and positive" }
-            require(riskPercent.isFinite() && riskPercent >= 0.0) { "riskPercent must be finite and non-negative" }
+            require(riskPercent.isFinite() && riskPercent in 0.0..100.0) { "riskPercent must be finite and between 0 and 100" }
             val percentageStop = lastPrice * (1.0 - riskPercent / 100.0)
             val validSupport = support?.takeIf { it.isFinite() && it > 0.0 && it < lastPrice }
             val stop = validSupport?.let { minOf(it, percentageStop) } ?: percentageStop
