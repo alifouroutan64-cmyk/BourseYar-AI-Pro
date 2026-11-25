@@ -42,4 +42,24 @@ class TsetmcInstrumentResolverTest {
             TsetmcInstrumentResolver.resolve("فولاد", json)
         }
     }
+
+    @Test
+    fun skipsMalformedDuplicateAndUsesNextValidExactMatch() {
+        val json = """{"instrumentSearch":[
+            {"lVal18AFC":"فولاد","insCode":"abc"},
+            {"lVal18AFC":"فولاد","insCode":"123456789"}
+        ]}"""
+        assertEquals("123456789", TsetmcInstrumentResolver.resolve("فولاد", json))
+    }
+
+    @Test
+    fun rejectsWhenAllExactMatchesHaveInvalidCodes() {
+        val json = """{"instrumentSearch":[
+            {"lVal18AFC":"فولاد","insCode":"abc"},
+            {"lVal18AFC":"فولاد","insCode":"123"}
+        ]}"""
+        assertThrows(IllegalArgumentException::class.java) {
+            TsetmcInstrumentResolver.resolve("فولاد", json)
+        }
+    }
 }
