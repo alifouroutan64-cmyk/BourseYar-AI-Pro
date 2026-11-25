@@ -85,4 +85,22 @@ class CodalFilingSearchParserTest {
         )!!
         assertEquals(1, parsed.filingsFound)
     }
+
+    @Test
+    fun acceptsOnlyOfficialHttpsCodalHostsAndDefaultPorts() {
+        assertEquals("https://www.codal.ir/Reports/1", safeCodalUrl("/Reports/1"))
+        assertEquals("https://codal.ir/Reports/1", safeCodalUrl("https://codal.ir/Reports/1"))
+        assertNull(safeCodalUrl("http://www.codal.ir/Reports/1"))
+        assertNull(safeCodalUrl("https://codal.ir.evil.example/Reports/1"))
+        assertNull(safeCodalUrl("https://user@codal.ir/Reports/1"))
+        assertNull(safeCodalUrl("https://codal.ir:8443/Reports/1"))
+    }
+
+    @Test
+    fun acceptsExcelOnlyFromDedicatedOfficialHost() {
+        assertEquals("https://excel.codal.ir/Reports/1.xls", safeCodalExcelUrl("https://excel.codal.ir/Reports/1.xls"))
+        assertNull(safeCodalExcelUrl("https://www.codal.ir/Reports/1.xls"))
+        assertNull(safeCodalExcelUrl("https://excel.codal.ir.evil.example/Reports/1.xls"))
+        assertNull(safeCodalExcelUrl("http://excel.codal.ir/Reports/1.xls"))
+    }
 }
