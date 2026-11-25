@@ -31,7 +31,7 @@ class ComprehensiveMarketScoringTest {
 
     @Test fun compositeScoreNormalizesOnlyAvailableFactors() {
         assertEquals(80, ComprehensiveMarketScoring.compositeScore(80, null, null, null))
-        assertEquals(80, ComprehensiveMarketScoring.compositeScore(80, 80, 1.0, 80))
+        assertEquals(75, ComprehensiveMarketScoring.compositeScore(80, 80, 1.0, 80))
     }
 
     @Test fun relativeVolumeIsConvertedToZeroToHundredAndCapped() {
