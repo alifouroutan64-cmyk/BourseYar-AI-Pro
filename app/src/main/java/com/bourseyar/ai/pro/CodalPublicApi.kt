@@ -39,6 +39,8 @@ object CodalPublicApi {
             connectTimeout = 10_000
             readTimeout = 15_000
             requestMethod = "GET"
+            // Do not follow server-controlled redirects to a different host.
+            instanceFollowRedirects = false
             setRequestProperty("User-Agent", "Mozilla/5.0 (Android) BourseYarAIPro")
             setRequestProperty("Accept", "application/json,text/html,application/vnd.ms-excel,*/*")
         }
