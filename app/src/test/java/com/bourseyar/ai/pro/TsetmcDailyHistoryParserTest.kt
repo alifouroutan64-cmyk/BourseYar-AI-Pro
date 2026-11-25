@@ -45,6 +45,18 @@ class TsetmcDailyHistoryParserTest {
     }
 
     @Test
+    fun rejectsLastTradePriceOutsideDailyRange() {
+        val aboveHigh = row("20260101", last = 106)
+        val belowLow = row("20260102", last = 94)
+        assertThrows(IllegalArgumentException::class.java) {
+            TsetmcDailyHistoryParser.parse("فولاد", aboveHigh, minimumCandles = 1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            TsetmcDailyHistoryParser.parse("فولاد", belowLow, minimumCandles = 1)
+        }
+    }
+
+    @Test
     fun rejectsDuplicateDates() {
         val raw = row("20260101") + ";" + row("20260101", close = 103)
         assertThrows(IllegalArgumentException::class.java) {
