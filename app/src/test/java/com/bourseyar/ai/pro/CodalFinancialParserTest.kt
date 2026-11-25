@@ -82,6 +82,25 @@ class CodalFinancialParserTest {
     }
 
     @Test
+    fun doesNotCalculateDebtToEquityWhenEquityIsNonPositive() {
+        val negativeEquity = """
+            <table>
+              <tr><td>جمع حقوق مالکانه</td><td>(200)</td></tr>
+              <tr><td>جمع بدهی‌ها</td><td>300</td></tr>
+            </table>
+        """.trimIndent()
+        val zeroEquity = """
+            <table>
+              <tr><td>جمع حقوق مالکانه</td><td>0</td></tr>
+              <tr><td>جمع بدهی‌ها</td><td>300</td></tr>
+            </table>
+        """.trimIndent()
+
+        assertNull(CodalFinancialParser.parseHtml(negativeEquity).debtToEquity)
+        assertNull(CodalFinancialParser.parseHtml(zeroEquity).debtToEquity)
+    }
+
+    @Test
     fun ignoresNonHtmlAndUnrelatedTables() {
         val binary = "PK\\u0003\\u0004not-an-html-workbook"
         val unrelated = "<table><tr><td>نام شرکت</td><td>نمونه</td></tr></table>"
