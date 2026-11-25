@@ -45,6 +45,16 @@ class MarketRiskLevelsTest {
         MarketRiskLevels.calculate(lastPrice = 100.0, support = null, riskPercent = Double.NaN)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsRiskPercentAboveOneHundred() {
+        MarketRiskLevels.calculate(lastPrice = 100.0, support = null, riskPercent = 100.1)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNegativeRiskPercent() {
+        MarketRiskLevels.calculate(lastPrice = 100.0, support = null, riskPercent = -0.1)
+    }
+
     @Test
     fun preservesCalculationForZeroRiskPercent() {
         val levels = MarketRiskLevels.calculate(lastPrice = 250.0, support = null, riskPercent = 0.0)
