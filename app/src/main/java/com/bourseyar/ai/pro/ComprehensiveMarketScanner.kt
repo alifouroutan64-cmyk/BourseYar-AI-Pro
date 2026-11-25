@@ -156,12 +156,10 @@ object ComprehensiveMarketScanner {
                         sourceNote = "EPS و P/E از اطلاعات ابزار TSETMC؛ فهرست اطلاعیه‌ها با جستجوی جداگانه کدال"
                     )
                 }
-                val stop = technical.report.support?.let { minOf(it, last * (1.0 - technical.riskPercent / 100.0)) }
-                    ?: last * (1.0 - technical.riskPercent / 100.0)
-                val risk = last - stop
-                val target1 = last + risk * 1.5
-                val target2 = last + risk * 2.0
-                val rr = if (risk > 0) (target1 - last) / risk else null
+                val riskLevels = MarketRiskLevels.calculate(last, technical.report.support, technical.riskPercent)
+                val stop = riskLevels.stopLoss
+                val target1 = riskLevels.target1
+                val target2 = riskLevels.target2
                 val technicalScore = technical.report.score
                 // Codal metrics remain null unless actual financial values are parsed.
                 val fundamentalScore = ComprehensiveMarketScoring.fundamentalScore(fundamental)
