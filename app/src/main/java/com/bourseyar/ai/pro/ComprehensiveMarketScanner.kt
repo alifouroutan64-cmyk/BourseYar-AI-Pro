@@ -164,23 +164,13 @@ object ComprehensiveMarketScanner {
                 val rr = if (risk > 0) (target1 - last) / risk else null
                 val technicalScore = technical.report.score
                 // Codal metrics remain null unless actual financial values are parsed.
-                val fundamentalScore: Int? = fundamental?.let { f ->
-                    if (!f.hasFinancialMetrics) null else {
-                        var score = 50
-                        f.eps?.let { if (it > 0) score += 15 else score -= 15 }
-                        f.pe?.let { if (it in 1.0..15.0) score += 15 else if (it > 30.0) score -= 10 }
-                        f.revenueGrowthPercent?.let { if (it > 0) score += 15 else score -= 10 }
-                        f.netProfitGrowthPercent?.let { if (it > 0) score += 15 else score -= 10 }
-                        f.roePercent?.let { if (it >= 15) score += 10 else if (it < 0) score -= 10 }
-                        f.debtToEquity?.let { if (it > 2) score -= 15 else if (it < 1) score += 10 }
-                        score.coerceIn(0, 100)
-                    }
-                }
-                val components = mutableListOf<Pair<Int, Double>>(technicalScore to 0.45)
-                if (flow != null) components += (flow to 0.20)
-                if (relativeVolume != null) components += (((relativeVolume / 2.0 * 100).coerceIn(0.0, 100.0).toInt()) to 0.15)
-                if (fundamentalScore != null) components += (fundamentalScore to 0.20)
-                val score = (components.sumOf { it.first * it.second } / components.sumOf { it.second }).toInt().coerceIn(0, 100)
+                val fundamentalScore = ComprehensiveMarketScoring.fundamentalScore(fundamental)
+                val score = ComprehensiveMarketScoring.compositeScore(
+                    technicalScore = technicalScore,
+                    flowScore = flow,
+                    relativeVolume = relativeVolume,
+                    fundamentalScore = fundamentalScore
+                )
                 val warnings = mutableListOf<String>()
                 if (fundamental?.hasFinancialMetrics != true) warnings += "نسب بنیادی قابل استخراج نبود؛ وزن بنیادی حذف شد"
                 if (flow == null) warnings += "جریان پول حقیقی ناقص"
