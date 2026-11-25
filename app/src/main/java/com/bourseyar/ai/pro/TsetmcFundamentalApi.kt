@@ -20,9 +20,10 @@ internal fun normalizeTsetmcSymbol(value: String): String =
 internal fun selectExactTsetmcInstrumentCode(instruments: List<Pair<String, String>>, requestedSymbol: String): String? {
     val requested = normalizeTsetmcSymbol(requestedSymbol)
     if (requested.isBlank()) return null
-    return instruments.firstOrNull { (symbol, _) ->
-        normalizeTsetmcSymbol(symbol) == requested
-    }?.second?.takeIf { it.matches(Regex("\\d{5,25}")) }
+    return instruments.firstOrNull { (symbol, code) ->
+        normalizeTsetmcSymbol(symbol) == requested &&
+            code.matches(Regex("\\d{5,25}"))
+    }?.second
 }
 
 /** Best-effort public instrument fundamentals (EPS/P-E) from TSETMC; never marks missing fields as zero. */
