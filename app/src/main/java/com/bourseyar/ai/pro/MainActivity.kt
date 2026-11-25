@@ -64,9 +64,11 @@ class MainActivity : Activity() {
         }
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16, 14, 16, 12)
+            setPadding(16, 14, 16, 16)
             background = rounded(intArrayOf(Color.rgb(23, 53, 75), Color.rgb(13, 34, 55)), 22)
             elevation = 5f
+            clipChildren = false
+            clipToPadding = false
         }
         val brandRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val mark = label("◈", 30f, accent, true).apply { gravity = Gravity.CENTER; setPadding(0, 0, 12, 0) }
@@ -83,9 +85,17 @@ class MainActivity : Activity() {
         header.addView(status)
         val navScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
-            setPadding(0, 12, 0, 10)
+            isFillViewport = false
+            clipChildren = false
+            clipToPadding = false
+            minimumHeight = (60 * resources.displayMetrics.density).toInt()
+            setPadding(0, 4, 0, 4)
         }
-        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        val nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            clipChildren = false
+        }
         listOf("بازار", "تابلو", "تحلیل", "اسکنر", "سبد", "راهنما").forEach { name ->
             val item = Button(this).apply {
                 text = name
@@ -96,7 +106,9 @@ class MainActivity : Activity() {
                     if (name == "سبد") startActivity(android.content.Intent(this@MainActivity, PortfolioActivity::class.java)) else show(name)
                 }
             }
-            nav.addView(item, LinearLayout.LayoutParams(-2, 46).apply { setMargins(3, 0, 3, 0) })
+            nav.addView(item, LinearLayout.LayoutParams(-2, (48 * resources.displayMetrics.density).toInt()).apply {
+                setMargins(3, 0, 3, 0)
+            })
         }
         navScroll.addView(nav)
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 4, 0, 18) }
@@ -107,7 +119,7 @@ class MainActivity : Activity() {
             clipToPadding = false
             addView(body)
         }
-        header.addView(navScroll)
+        header.addView(navScroll, LinearLayout.LayoutParams(-1, (60 * resources.displayMetrics.density).toInt()))
         root.addView(header)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 12 })
         setContentView(root)
