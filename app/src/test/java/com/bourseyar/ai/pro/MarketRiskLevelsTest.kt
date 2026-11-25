@@ -25,6 +25,27 @@ class MarketRiskLevelsTest {
     }
 
     @Test
+    fun ignoresInvalidOrAboveMarketSupport() {
+        val invalid = MarketRiskLevels.calculate(lastPrice = 100.0, support = Double.NaN, riskPercent = 5.0)
+        val nonPositive = MarketRiskLevels.calculate(lastPrice = 100.0, support = -10.0, riskPercent = 5.0)
+        val aboveMarket = MarketRiskLevels.calculate(lastPrice = 100.0, support = 110.0, riskPercent = 5.0)
+
+        assertEquals(95.0, invalid.stopLoss, 0.0001)
+        assertEquals(95.0, nonPositive.stopLoss, 0.0001)
+        assertEquals(95.0, aboveMarket.stopLoss, 0.0001)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveLastPrice() {
+        MarketRiskLevels.calculate(lastPrice = 0.0, support = null, riskPercent = 5.0)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonFiniteRiskPercent() {
+        MarketRiskLevels.calculate(lastPrice = 100.0, support = null, riskPercent = Double.NaN)
+    }
+
+    @Test
     fun preservesCalculationForZeroRiskPercent() {
         val levels = MarketRiskLevels.calculate(lastPrice = 250.0, support = null, riskPercent = 0.0)
 
