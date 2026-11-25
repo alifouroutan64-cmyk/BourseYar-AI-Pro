@@ -53,6 +53,19 @@ class TsetmcMarketWatchParserTest {
     }
 
     @Test
+    fun preservesRowsWhenInstrumentIdIsMissingEvenIfRowsAreIdentical() {
+        val withoutId = JSONObject()
+            .put("lVal18AFC", "نماد")
+            .put("yVal", 300)
+            .put("pDrCotVal", 100)
+        val result = TsetmcMarketWatchParser.parse(
+            JSONArray().put(withoutId).put(JSONObject(withoutId.toString()))
+        )
+        assertEquals(2, result.rows.size)
+        assertTrue(result.rows.all { it.instrumentId == null })
+    }
+
+    @Test
     fun ignoresClosingPriceAliasThatIsFarFromLastPrice() {
         val result = TsetmcMarketWatchParser.parse(JSONArray().put(row("فولاد", "1").put("pClosing", 200)))
         assertNull(result.rows.single().close)
