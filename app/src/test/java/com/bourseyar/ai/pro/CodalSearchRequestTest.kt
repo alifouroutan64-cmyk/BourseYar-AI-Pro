@@ -25,6 +25,16 @@ class CodalSearchRequestTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
+    fun rejectsOverlongSymbol() {
+        CodalSearchRequest.urls("ن".repeat(CodalSearchRequest.MAX_SYMBOL_LENGTH + 1), 20)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsControlCharactersInSymbol() {
+        CodalSearchRequest.urls("نماد\nآزمایشی", 20)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
     fun rejectsZeroPageSize() {
         CodalSearchRequest.urls("نماد", 0)
     }
@@ -39,5 +49,12 @@ class CodalSearchRequestTest {
         val urls = CodalSearchRequest.urls("نماد", CodalSearchRequest.MAX_PAGE_SIZE)
 
         assertEquals(true, urls.all { it.endsWith("PageSize=100") })
+    }
+
+    @Test
+    fun acceptsMaximumSymbolLength() {
+        val urls = CodalSearchRequest.urls("ن".repeat(CodalSearchRequest.MAX_SYMBOL_LENGTH), 20)
+
+        assertEquals(2, urls.size)
     }
 }
